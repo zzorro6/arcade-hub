@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verify Fairness - Arcade Hub</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .verify-container {
+      max-width: 600px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+    .verify-card {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .verify-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.5rem;
+      font-weight: bold;
+      margin-bottom: 1rem;
+      color: #10b981;
+    }
+    .verify-input {
+      width: 100%;
+      padding: 0.75rem;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: white;
+      font-family: monospace;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+    }
+    .verify-input:focus {
+      outline: none;
+      border-color: #10b981;
+    }
+    .verify-label {
+      display: block;
+      font-size: 0.85rem;
+      color: #9ca3af;
+      margin-bottom: 0.5rem;
+    }
+    .verify-result {
+      padding: 1rem;
+      border-radius: 8px;
+      margin-top: 1rem;
+      display: none;
+    }
+    .verify-result.success {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid #10b981;
+      color: #10b981;
+    }
+    .verify-result.error {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid #ef4444;
+      color: #ef4444;
+    }
+    .how-it-works {
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+    .how-it-works h3 {
+      color: white;
+      margin-bottom: 0.5rem;
+      font-size: 1rem;
+    }
+    .how-it-works ol {
+      color: #9ca3af;
+      padding-left: 1.2rem;
+      font-size: 0.9rem;
+    }
+    .how-it-works li {
+      margin-bottom: 0.3rem;
+    }
+    .calculated-hash {
+      background: #0f172a;
+      padding: 0.75rem;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      word-break: break-all;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a href="/arcade-hub/index.html" class="logo">Arcade Hub</a>
+    <nav class="nav-links">
+      <a href="/arcade-hub/index.html" class="btn" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:8px 16px;border-radius:8px;text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        Back to Games
+      </a>
+    </nav>
+  </header>
+
+  <main class="verify-container">
+    <div class="verify-card">
+      <div class="verify-title">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="M9 12l2 2 4-4"/>
+        </svg>
+        Provably Fair Verification
+      </div>
+      
+      <p style="color:#9ca3af;margin-bottom:1.5rem;">
+        Verify that any game outcome was fair and not manipulated. Enter the server seed and hash to check.
+      </p>
+
+      <form id="verify-form">
+        <label class="verify-label">Server Seed (revealed after game)</label>
+        <input type="text" id="server-seed" class="verify-input" placeholder="Enter the server seed..." />
+        
+        <label class="verify-label">Server Seed Hash (shown before game)</label>
+        <input type="text" id="server-hash" class="verify-input" placeholder="Enter the hash that was shown..." />
+        
+        <button type="submit" class="btn" style="width:100%;">
+          Verify Fairness
+        </button>
+      </form>
+
+      <div id="verify-result" class="verify-result"></div>
+      
+      <div id="calculated-section" style="display:none;margin-top:1rem;">
+        <label class="verify-label">Calculated Hash from Server Seed:</label>
+        <div id="calculated-hash" class="calculated-hash"></div>
+      </div>
+    </div>
+
+    <div class="verify-card">
+      <div class="how-it-works">
+        <h3>🔐 How Provably Fair Works</h3>
+        <ol>
+          <li><strong>Before the game:</strong> We generate a random "server seed" and show you its SHA-256 hash</li>
+          <li><strong>During the game:</strong> The outcome is determined by the server seed (which you can't see yet)</li>
+          <li><strong>After the game:</strong> We reveal the actual server seed</li>
+          <li><strong>Verification:</strong> You can hash the revealed seed yourself - if it matches the hash we showed you before, the game was fair</li>
+        </ol>
+      </div>
+      
+      <div style="margin-top:1rem;padding:1rem;background:#0f172a;border-radius:8px;">
+        <h3 style="color:white;margin-bottom:0.5rem;font-size:1rem;">🤔 Why does this prove fairness?</h3>
+        <p style="color:#9ca3af;font-size:0.9rem;">
+          Because we show you the hash <em>before</em> the game, we can't change the seed afterward. 
+          Cryptographic hashes are one-way - you can't find a seed that produces a specific hash. 
+          So if the seed we reveal matches the hash, we couldn't have cheated.
+        </p>
+      </div>
+    </div>
+
+    <div class="verify-card">
+      <h3 style="color:white;margin-bottom:1rem;">🔍 Lookup Game by ID</h3>
+      <form id="lookup-form">
+        <label class="verify-label">Game ID (from your game history)</label>
+        <input type="text" id="game-id" class="verify-input" placeholder="Enter game ID..." />
+        <button type="submit" class="btn btn-secondary" style="width:100%;">
+          Lookup Game
+        </button>
+      </form>
+      <div id="lookup-result" style="margin-top:1rem;"></div>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // SHA-256 hash function
+    async function sha256(str) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(str);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // Verify form
+    document.getElementById('verify-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const serverSeed = document.getElementById('server-seed').value.trim();
+      const expectedHash = document.getElementById('server-hash').value.trim();
+      const resultEl = document.getElementById('verify-result');
+      const calcSection = document.getElementById('calculated-section');
+      const calcHash = document.getElementById('calculated-hash');
+      
+      if (!serverSeed || !expectedHash) {
+        resultEl.className = 'verify-result error';
+        resultEl.style.display = 'block';
+        resultEl.innerHTML = '❌ Please enter both the server seed and hash.';
+        return;
+      }
+      
+      // Calculate hash
+      const calculatedHash = await sha256(serverSeed);
+      calcSection.style.display = 'block';
+      calcHash.textContent = calculatedHash;
+      
+      // Compare
+      if (calculatedHash.toLowerCase() === expectedHash.toLowerCase()) {
+        resultEl.className = 'verify-result success';
+        resultEl.innerHTML = `
+          <strong>✅ VERIFIED - Game was fair!</strong><br>
+          <span style="font-size:0.85rem;opacity:0.8;">
+            The server seed hash matches. This proves the outcome was determined before the game started.
+          </span>
+        `;
+      } else {
+        resultEl.className = 'verify-result error';
+        resultEl.innerHTML = `
+          <strong>❌ MISMATCH - Verification failed</strong><br>
+          <span style="font-size:0.85rem;opacity:0.8;">
+            The calculated hash does not match. Please check that you entered the correct values.
+          </span>
+        `;
+      }
+      resultEl.style.display = 'block';
+    });
+
+    // Lookup form
+    const SUPABASE_URL = "https://wokarixqtacrqkupudom.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indva2FyaXhxdGFjcnFrdXB1ZG9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MDA4NjAsImV4cCI6MjA3OTE3Njg2MH0.rJKRCRYyJnzMv2uAoQ4NqjGRbCSa3nvELedbJIOGyAk";
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    document.getElementById('lookup-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const gameId = document.getElementById('game-id').value.trim();
+      const resultEl = document.getElementById('lookup-result');
+      
+      if (!gameId) {
+        resultEl.innerHTML = '<span style="color:#ef4444;">Please enter a game ID.</span>';
+        return;
+      }
+      
+      resultEl.innerHTML = '<span style="color:#9ca3af;">Looking up game...</span>';
+      
+      try {
+        // Try searching by game_id first (may have multiple records - one per player)
+        let { data: records, error } = await supabase
+          .from('provably_fair_games')
+          .select('*')
+          .eq('game_id', gameId)
+          .order('created_at', { ascending: false });
+        
+        let data = records && records.length > 0 ? records[0] : null;
+        
+        // If not found by game_id, try by the record's own id
+        if (!data) {
+          const result = await supabase
+            .from('provably_fair_games')
+            .select('*')
+            .eq('id', gameId)
+            .maybeSingle();
+          data = result.data;
+          error = result.error;
+        }
+        
+        if (error || !data) {
+          resultEl.innerHTML = '<span style="color:#ef4444;">Game not found. Check the ID and try again.</span>';
+          return;
+        }
+        
+        resultEl.innerHTML = `
+          <div style="background:#0f172a;padding:1rem;border-radius:8px;">
+            <div style="margin-bottom:0.75rem;">
+              <span style="color:#9ca3af;font-size:0.8rem;">Game Type:</span>
+              <div style="color:white;">${data.game_type}</div>
+            </div>
+            <div style="margin-bottom:0.75rem;">
+              <span style="color:#9ca3af;font-size:0.8rem;">Server Seed Hash:</span>
+              <div style="font-family:monospace;font-size:0.8rem;color:#10b981;word-break:break-all;">${data.server_seed_hash}</div>
+            </div>
+            ${data.is_revealed ? `
+              <div style="margin-bottom:0.75rem;">
+                <span style="color:#9ca3af;font-size:0.8rem;">Server Seed (Revealed):</span>
+                <div style="font-family:monospace;font-size:0.8rem;color:#fbbf24;word-break:break-all;">${data.server_seed}</div>
+              </div>
+              <div style="margin-bottom:0.75rem;">
+                <span style="color:#9ca3af;font-size:0.8rem;">Client Seed:</span>
+                <div style="font-family:monospace;font-size:0.8rem;color:white;">${data.client_seed}</div>
+              </div>
+              <button onclick="autoVerify('${data.server_seed}', '${data.server_seed_hash}')" class="btn" style="width:100%;margin-top:0.5rem;">
+                Auto-Verify This Game
+              </button>
+            ` : `
+              <div style="color:#fbbf24;font-size:0.9rem;">
+                ⏳ Game not yet completed - seed will be revealed after the game ends.
+              </div>
+            `}
+          </div>
+        `;
+      } catch (err) {
+        resultEl.innerHTML = '<span style="color:#ef4444;">Error looking up game.</span>';
+      }
+    });
+
+    function autoVerify(seed, hash) {
+      document.getElementById('server-seed').value = seed;
+      document.getElementById('server-hash').value = hash;
+      document.getElementById('verify-form').dispatchEvent(new Event('submit'));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  </script>
+</body>
+</html>

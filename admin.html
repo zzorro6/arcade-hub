@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel - Arcade Hub</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    .admin-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    .admin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #374151;
+    }
+    .admin-title {
+      font-size: 1.8rem;
+      font-weight: bold;
+      color: white;
+    }
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .tab {
+      padding: 0.75rem 1.5rem;
+      background: #1e293b;
+      border: none;
+      border-radius: 8px;
+      color: #9ca3af;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .tab:hover {
+      background: #334155;
+    }
+    .tab.active {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .stat-card {
+      background: #1e293b;
+      padding: 1.5rem;
+      border-radius: 12px;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 2.5rem;
+      font-weight: bold;
+      color: white;
+    }
+    .stat-label {
+      color: #9ca3af;
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+    }
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #1e293b;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .data-table th {
+      background: #0f172a;
+      color: #9ca3af;
+      padding: 1rem;
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+    }
+    .data-table td {
+      padding: 1rem;
+      border-top: 1px solid #374151;
+      color: white;
+      font-size: 0.9rem;
+    }
+    .data-table tr:hover {
+      background: #334155;
+    }
+    .severity-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+    .severity-LOW { background: #fbbf24; color: #000; }
+    .severity-MEDIUM { background: #f97316; color: #fff; }
+    .severity-HIGH { background: #ef4444; color: #fff; }
+    .severity-CRITICAL { background: #7f1d1d; color: #fff; }
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: bold;
+    }
+    .status-pending { background: #fbbf24; color: #000; }
+    .status-approved { background: #22c55e; color: #fff; }
+    .status-denied { background: #ef4444; color: #fff; }
+    .status-expired { background: #6b7280; color: #fff; }
+    .action-btn {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 500;
+      margin-right: 0.25rem;
+    }
+    .btn-view { background: #6366f1; color: white; }
+    .btn-ban { background: #ef4444; color: white; }
+    .btn-unban { background: #22c55e; color: white; }
+    .btn-dismiss { background: #374151; color: white; }
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal {
+      background: #1e293b;
+      border-radius: 16px;
+      max-width: 700px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      padding: 2rem;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+    .modal-title {
+      font-size: 1.3rem;
+      font-weight: bold;
+      color: white;
+    }
+    .modal-close {
+      background: none;
+      border: none;
+      color: #9ca3af;
+      font-size: 1.5rem;
+      cursor: pointer;
+    }
+    .evidence-box {
+      background: #0f172a;
+      padding: 1rem;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #10b981;
+      max-height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    .form-label {
+      display: block;
+      color: #9ca3af;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+    .form-input, .form-textarea {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #374151;
+      border-radius: 8px;
+      padding: 0.75rem;
+      color: white;
+      font-family: inherit;
+    }
+    .form-textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+    .filter-bar {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .filter-select {
+      background: #1e293b;
+      border: 1px solid #374151;
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      color: white;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: #9ca3af;
+    }
+    .click-chart {
+      display: flex;
+      align-items: flex-end;
+      height: 100px;
+      gap: 2px;
+      margin-top: 1rem;
+      padding: 0.5rem;
+      background: #0f172a;
+      border-radius: 8px;
+    }
+    .chart-bar {
+      flex: 1;
+      background: linear-gradient(to top, #6366f1, #a78bfa);
+      border-radius: 2px 2px 0 0;
+      min-width: 4px;
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a href="/arcade-hub/index.html" class="logo">Arcade Hub</a>
+    <nav class="nav-links">
+      <a href="/arcade-hub/index.html" class="btn" style="background:#374151;padding:8px 16px;border-radius:8px;text-decoration:none;">
+        ← Back to Games
+      </a>
+    </nav>
+  </header>
+
+  <main class="admin-container">
+    <div class="admin-header">
+      <div class="admin-title">🛡️ Admin Panel</div>
+      <div id="admin-status" style="color:#9ca3af;"></div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="stat-players">-</div>
+        <div class="stat-label">Total Players</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-pending">-</div>
+        <div class="stat-label">Pending Reviews</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-banned">-</div>
+        <div class="stat-label">Active Bans</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-appeals">-</div>
+        <div class="stat-label">Pending Appeals</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-today">-</div>
+        <div class="stat-label">Detections Today</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" onclick="showTab('cheats')">🚨 Cheat Logs</button>
+      <button class="tab" onclick="showTab('appeals')">📝 Appeals</button>
+      <button class="tab" onclick="showTab('bans')">🚫 Active Bans</button>
+      <button class="tab" onclick="showTab('players')">👥 All Players</button>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar" id="filter-bar">
+      <select class="filter-select" id="filter-severity" onchange="loadCheatLogs()">
+        <option value="">All Severities</option>
+        <option value="LOW">LOW</option>
+        <option value="MEDIUM">MEDIUM</option>
+        <option value="HIGH">HIGH</option>
+        <option value="CRITICAL">CRITICAL</option>
+      </select>
+      <select class="filter-select" id="filter-reviewed" onchange="loadCheatLogs()">
+        <option value="false">Unreviewed</option>
+        <option value="true">Reviewed</option>
+        <option value="">All</option>
+      </select>
+    </div>
+
+    <!-- Content -->
+    <div id="tab-content">
+      <!-- Cheat Logs Table -->
+      <div id="cheats-tab">
+        <table class="data-table" id="cheats-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Player</th>
+              <th>Game</th>
+              <th>Severity</th>
+              <th>Flags</th>
+              <th>Auto-Banned</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="cheats-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Appeals Table -->
+      <div id="appeals-tab" style="display:none;">
+        <table class="data-table" id="appeals-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Player</th>
+              <th>Appeal Reason</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="appeals-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Active Bans Table -->
+      <div id="bans-tab" style="display:none;">
+        <table class="data-table" id="bans-table">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>Ban Reason</th>
+              <th>Banned Until</th>
+              <th>Ban Count</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="bans-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- All Players Tab -->
+      <div id="players-tab" style="display:none;">
+        <div style="margin-bottom:1rem;display:flex;gap:1rem;align-items:center;">
+          <input type="text" id="player-search" placeholder="Search by username..." 
+            style="flex:1;background:#0f172a;border:1px solid #374151;border-radius:8px;padding:0.75rem 1rem;color:white;font-size:1rem;"
+            oninput="searchPlayers()">
+          <button class="action-btn btn-view" onclick="loadAllPlayers()" style="padding:0.75rem 1.5rem;">Refresh</button>
+        </div>
+        <div id="players-count" style="color:#9ca3af;font-size:0.85rem;margin-bottom:1rem;"></div>
+        <table class="data-table" id="players-table">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Coins</th>
+              <th>Cash</th>
+              <th>Joined</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="players-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const SUPABASE_URL = "https://wokarixqtacrqkupudom.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indva2FyaXhxdGFjcnFrdXB1ZG9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MDA4NjAsImV4cCI6MjA3OTE3Njg2MH0.rJKRCRYyJnzMv2uAoQ4NqjGRbCSa3nvELedbJIOGyAk";
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Admin access control - same usernames as operator dashboard
+    const ADMIN_USERNAMES = ["zoominz9"];
+    let currentUser = null;
+
+    // Check admin access on page load
+    async function checkAdminAccess() {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        showAccessDenied("Please log in to access the admin panel.");
+        return false;
+      }
+
+      // Get user profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', session.user.id)
+        .single();
+
+      if (!profile || !ADMIN_USERNAMES.includes(profile.username)) {
+        showAccessDenied("Access denied. Admin privileges required.");
+        return false;
+      }
+
+      currentUser = { id: session.user.id, username: profile.username };
+      document.getElementById('admin-status').textContent = `Logged in as: ${profile.username}`;
+      return true;
+    }
+
+    function showAccessDenied(message) {
+      document.querySelector('.admin-container').innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;">
+          <div style="font-size:4rem;margin-bottom:1rem;">🚫</div>
+          <div style="font-size:1.5rem;font-weight:bold;color:#ef4444;margin-bottom:1rem;">Access Denied</div>
+          <div style="color:#9ca3af;margin-bottom:2rem;">${message}</div>
+          <a href="/arcade-hub/index.html" class="btn" style="background:#6366f1;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;">
+            ← Back to Arcade Hub
+          </a>
+        </div>
+      `;
+    }
+
+    let currentTab = 'cheats';
+
+    // Load stats
+    async function loadStats() {
+      // Total players
+      const { count: totalPlayers } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
+      document.getElementById('stat-players').textContent = totalPlayers || 0;
+
+      // Pending reviews
+      const { count: pending } = await supabase
+        .from('cheat_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('reviewed', false);
+      document.getElementById('stat-pending').textContent = pending || 0;
+
+      // Active bans
+      const { count: banned } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .gt('banned_until', new Date().toISOString());
+      document.getElementById('stat-banned').textContent = banned || 0;
+
+      // Pending appeals
+      const { count: appeals } = await supabase
+        .from('ban_appeals')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      document.getElementById('stat-appeals').textContent = appeals || 0;
+
+      // Detections today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const { count: todayCount } = await supabase
+        .from('cheat_logs')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', today.toISOString());
+      document.getElementById('stat-today').textContent = todayCount || 0;
+    }
+
+    // Show tab
+    function showTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelector(`.tab[onclick="showTab('${tab}')"]`).classList.add('active');
+      
+      document.getElementById('cheats-tab').style.display = tab === 'cheats' ? 'block' : 'none';
+      document.getElementById('appeals-tab').style.display = tab === 'appeals' ? 'block' : 'none';
+      document.getElementById('bans-tab').style.display = tab === 'bans' ? 'block' : 'none';
+      document.getElementById('players-tab').style.display = tab === 'players' ? 'block' : 'none';
+      document.getElementById('filter-bar').style.display = tab === 'cheats' ? 'flex' : 'none';
+
+      if (tab === 'cheats') loadCheatLogs();
+      if (tab === 'appeals') loadAppeals();
+      if (tab === 'bans') loadBans();
+      if (tab === 'players') loadAllPlayers();
+    }
+
+    // All players data cache for search
+    let allPlayersCache = [];
+
+    // Load all players
+    async function loadAllPlayers() {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .limit(500);
+
+        if (error) {
+          console.error('Error loading players:', error);
+          document.getElementById('players-tbody').innerHTML = '<tr><td colspan="6" class="empty-state">Error loading players: ' + error.message + '</td></tr>';
+          return;
+        }
+
+        allPlayersCache = data || [];
+        document.getElementById('players-count').textContent = `Total players: ${allPlayersCache.length}`;
+        renderPlayers(allPlayersCache);
+      } catch (e) {
+        console.error('Exception loading players:', e);
+        document.getElementById('players-tbody').innerHTML = '<tr><td colspan="6" class="empty-state">Error: ' + e.message + '</td></tr>';
+      }
+    }
+
+    // Search players
+    function searchPlayers() {
+      const query = document.getElementById('player-search').value.toLowerCase().trim();
+      if (!query) {
+        renderPlayers(allPlayersCache);
+        return;
+      }
+      const filtered = allPlayersCache.filter(p => 
+        p.username?.toLowerCase().includes(query) || 
+        p.id?.toLowerCase().includes(query)
+      );
+      renderPlayers(filtered);
+    }
+
+    // Render players table
+    function renderPlayers(players) {
+      const tbody = document.getElementById('players-tbody');
+      if (!players || players.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No players found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = players.map(p => {
+        const isBanned = p.banned_until && new Date(p.banned_until) > new Date();
+        const statusBadge = isBanned 
+          ? '<span style="background:#ef4444;color:white;padding:2px 8px;border-radius:4px;font-size:0.75rem;">BANNED</span>'
+          : '<span style="background:#22c55e;color:white;padding:2px 8px;border-radius:4px;font-size:0.75rem;">ACTIVE</span>';
+        
+        const username = p.username || 'Unknown';
+        const usernameEscaped = username.replace(/'/g, "\\'");
+        
+        // Format date as M-D-YY
+        function formatJoinDate(dateStr) {
+          if (!dateStr) return '-';
+          const d = new Date(dateStr);
+          const month = d.getMonth() + 1;
+          const day = d.getDate();
+          const year = String(d.getFullYear()).slice(-2);
+          return `${month}-${day}-${year}`;
+        }
+        
+        return `
+          <tr>
+            <td>
+              <strong>${username}</strong>
+              <br><span style="color:#6b7280;font-size:0.7rem;">${p.id ? p.id.substring(0,8) : ''}...</span>
+            </td>
+            <td style="color:#fbbf24;">${(p.coin_balance || 0).toLocaleString()}</td>
+            <td style="color:#22c55e;">$${(p.cash_balance || 0).toFixed(2)}</td>
+            <td>${formatJoinDate(p.created_at)}</td>
+            <td>${statusBadge}</td>
+            <td>
+              ${isBanned 
+                ? `<button class="action-btn btn-unban" onclick="unbanPlayer('${p.id}')">Unban</button>`
+                : `<button class="action-btn btn-ban" onclick="showBanModal('${p.id}', '${usernameEscaped}')">Ban</button>`
+              }
+              <button class="action-btn btn-view" onclick="viewPlayerDetails('${p.id}')">View</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Show ban modal for custom ban duration
+    function showBanModal(playerId, username) {
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+      modal.innerHTML = `
+        <div class="modal" style="max-width:400px;">
+          <div class="modal-header">
+            <div class="modal-title">🚫 Ban ${username}</div>
+            <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+          </div>
+          
+          <div style="margin-bottom:1rem;">
+            <label style="color:#9ca3af;font-size:0.85rem;display:block;margin-bottom:0.5rem;">Ban Duration</label>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+              <button class="action-btn" onclick="executeBan('${playerId}', '${username}', 5, 'minutes')" style="background:#f59e0b;">5 min</button>
+              <button class="action-btn" onclick="executeBan('${playerId}', '${username}', 30, 'minutes')" style="background:#f59e0b;">30 min</button>
+              <button class="action-btn" onclick="executeBan('${playerId}', '${username}', 1, 'days')" style="background:#ef4444;">1 day</button>
+              <button class="action-btn" onclick="executeBan('${playerId}', '${username}', 7, 'days')" style="background:#ef4444;">7 days</button>
+              <button class="action-btn" onclick="executeBan('${playerId}', '${username}', 30, 'days')" style="background:#ef4444;">30 days</button>
+              <button class="action-btn" onclick="executeBan('${playerId}', '${username}', 365, 'days')" style="background:#dc2626;">1 year</button>
+              <button class="action-btn" onclick="executeBan('${playerId}', '${username}', 36500, 'days')" style="background:#7f1d1d;">Permanent</button>
+            </div>
+          </div>
+          
+          <div style="margin-bottom:1rem;">
+            <label style="color:#9ca3af;font-size:0.85rem;display:block;margin-bottom:0.5rem;">Custom Duration</label>
+            <div style="display:flex;gap:0.5rem;">
+              <input type="number" id="ban-amount" placeholder="Amount" style="flex:1;background:#0f172a;border:1px solid #374151;border-radius:8px;padding:0.5rem;color:white;" min="1">
+              <select id="ban-unit" style="background:#0f172a;border:1px solid #374151;border-radius:8px;padding:0.5rem;color:white;">
+                <option value="minutes">Minutes</option>
+                <option value="hours">Hours</option>
+                <option value="days" selected>Days</option>
+              </select>
+            </div>
+          </div>
+          
+          <div style="margin-bottom:1rem;">
+            <label style="color:#9ca3af;font-size:0.85rem;display:block;margin-bottom:0.5rem;">ToS Violation</label>
+            <select id="ban-preset" onchange="document.getElementById('ban-reason').value = this.value" style="width:100%;background:#0f172a;border:1px solid #374151;border-radius:8px;padding:0.5rem;color:white;margin-bottom:0.5rem;">
+              <option value="">-- Select a violation --</option>
+              <option value="Cheating/Bot Usage - Automated clicking or scripted gameplay detected">Cheating/Bot Usage</option>
+              <option value="Exploiting Bugs - Intentionally abusing game glitches for unfair advantage">Exploiting Bugs</option>
+              <option value="Multiple Accounts - Operating multiple accounts to gain unfair rewards">Multiple Accounts</option>
+              <option value="Coin/Cash Manipulation - Attempting to manipulate balances illegally">Coin/Cash Manipulation</option>
+              <option value="Abusive Behavior - Harassment, hate speech, or toxic conduct">Abusive Behavior</option>
+              <option value="Fraudulent Activity - Payment fraud or chargebacks">Fraudulent Activity</option>
+              <option value="Terms of Service Violation - General violation of platform rules">Terms of Service Violation</option>
+              <option value="Suspicious Activity - Account flagged for review">Suspicious Activity</option>
+            </select>
+            <label style="color:#9ca3af;font-size:0.85rem;display:block;margin-bottom:0.5rem;">Custom Reason</label>
+            <input type="text" id="ban-reason" placeholder="Or enter custom reason..." value="" style="width:100%;background:#0f172a;border:1px solid #374151;border-radius:8px;padding:0.5rem;color:white;">
+          </div>
+          
+          <div style="display:flex;gap:0.5rem;">
+            <button class="action-btn btn-ban" onclick="executeCustomBan('${playerId}', '${username}')" style="flex:1;">Ban Player</button>
+            <button class="action-btn btn-dismiss" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    // Execute ban with preset duration
+    async function executeBan(playerId, username, amount, unit) {
+      const preset = document.getElementById('ban-preset')?.value;
+      const custom = document.getElementById('ban-reason')?.value;
+      const reason = preset || custom || 'Admin ban';
+      
+      const banUntil = new Date();
+      if (unit === 'minutes') {
+        banUntil.setMinutes(banUntil.getMinutes() + amount);
+      } else if (unit === 'hours') {
+        banUntil.setHours(banUntil.getHours() + amount);
+      } else {
+        banUntil.setDate(banUntil.getDate() + amount);
+      }
+      
+      await performBan(playerId, username, banUntil, reason, `${amount} ${unit}`);
+    }
+
+    // Execute custom ban
+    async function executeCustomBan(playerId, username) {
+      const amount = parseInt(document.getElementById('ban-amount')?.value);
+      const unit = document.getElementById('ban-unit')?.value || 'days';
+      const preset = document.getElementById('ban-preset')?.value;
+      const custom = document.getElementById('ban-reason')?.value;
+      const reason = preset || custom || 'Admin ban';
+      
+      if (!amount || amount < 1) {
+        alert('Please enter a valid duration.');
+        return;
+      }
+      
+      const banUntil = new Date();
+      if (unit === 'minutes') {
+        banUntil.setMinutes(banUntil.getMinutes() + amount);
+      } else if (unit === 'hours') {
+        banUntil.setHours(banUntil.getHours() + amount);
+      } else {
+        banUntil.setDate(banUntil.getDate() + amount);
+      }
+      
+      await performBan(playerId, username, banUntil, reason, `${amount} ${unit}`);
+    }
+
+    // Perform the actual ban
+    async function performBan(playerId, username, banUntil, reason, durationText) {
+      try {
+        const { data: profile } = await supabase.from('profiles').select('ban_count').eq('id', playerId).single();
+        
+        const { data, error } = await supabase
+          .from('profiles')
+          .update({
+            banned_until: banUntil.toISOString(),
+            ban_reason: reason,
+            ban_count: (profile?.ban_count || 0) + 1
+          })
+          .eq('id', playerId)
+          .select();
+
+        if (error) {
+          console.error('Ban error:', error);
+          alert(`Failed to ban ${username}: ${error.message}`);
+          return;
+        }
+
+        // Log to ban history
+        await supabase.from('ban_history').insert({
+          player_id: playerId,
+          username: username,
+          banned_by: currentUser?.username || 'Admin',
+          ban_reason: reason,
+          ban_duration: durationText,
+          banned_until: banUntil.toISOString()
+        });
+
+        document.querySelector('.modal-overlay')?.remove();
+        alert(`${username} has been banned for ${durationText}.`);
+        loadAllPlayers();
+        loadStats();
+      } catch (e) {
+        console.error('Ban exception:', e);
+        alert(`Error banning ${username}: ${e.message}`);
+      }
+    }
+
+    // Ban player directly
+    async function banPlayerDirect(playerId, username, days, reason) {
+      const banUntil = new Date();
+      banUntil.setDate(banUntil.getDate() + days);
+
+      try {
+        const { data: profile } = await supabase.from('profiles').select('ban_count').eq('id', playerId).single();
+        
+        const { data, error } = await supabase
+          .from('profiles')
+          .update({
+            banned_until: banUntil.toISOString(),
+            ban_reason: reason,
+            ban_count: (profile?.ban_count || 0) + 1
+          })
+          .eq('id', playerId)
+          .select();
+
+        if (error) {
+          console.error('Ban error:', error);
+          alert(`Failed to ban ${username}: ${error.message}`);
+          return;
+        }
+
+        console.log('Ban result:', data);
+        alert(`${username} has been banned for ${days} days.`);
+        loadAllPlayers();
+        loadStats();
+      } catch (e) {
+        console.error('Ban exception:', e);
+        alert(`Error banning ${username}: ${e.message}`);
+      }
+    }
+
+    // View player details
+    async function viewPlayerDetails(playerId) {
+      const { data: player } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', playerId)
+        .single();
+
+      if (!player) return;
+
+      const { data: cheatLogs } = await supabase
+        .from('cheat_logs')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      // Fetch ban history
+      const { data: banHistory } = await supabase
+        .from('ban_history')
+        .select('*')
+        .eq('player_id', playerId)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      const isBanned = player.banned_until && new Date(player.banned_until) > new Date();
+
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+      modal.innerHTML = `
+        <div class="modal" style="max-width:600px;">
+          <div class="modal-header">
+            <div class="modal-title">👤 Player Details</div>
+            <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+          </div>
+          
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+            <div>
+              <div style="color:#9ca3af;font-size:0.85rem;">Username</div>
+              <div style="color:white;font-weight:bold;font-size:1.2rem;">${player.username || 'Unknown'}</div>
+            </div>
+            <div>
+              <div style="color:#9ca3af;font-size:0.85rem;">Status</div>
+              <div style="color:${isBanned ? '#ef4444' : '#22c55e'};font-weight:bold;">${isBanned ? 'BANNED' : 'ACTIVE'}</div>
+            </div>
+            <div>
+              <div style="color:#9ca3af;font-size:0.85rem;">Coins</div>
+              <div style="color:#fbbf24;font-weight:bold;">${(player.coin_balance || 0).toLocaleString()}</div>
+            </div>
+            <div>
+              <div style="color:#9ca3af;font-size:0.85rem;">Cash</div>
+              <div style="color:#22c55e;font-weight:bold;">$${(player.cash_balance || 0).toFixed(2)}</div>
+            </div>
+            <div>
+              <div style="color:#9ca3af;font-size:0.85rem;">Joined</div>
+              <div style="color:white;">${player.created_at ? new Date(player.created_at).toLocaleDateString() : '-'}</div>
+            </div>
+            <div>
+              <div style="color:#9ca3af;font-size:0.85rem;">Ban Count</div>
+              <div style="color:${player.ban_count > 0 ? '#ef4444' : 'white'};">${player.ban_count || 0}</div>
+            </div>
+          </div>
+
+          ${isBanned ? `
+            <div style="background:#7f1d1d;padding:1rem;border-radius:8px;margin-bottom:1rem;">
+              <div style="color:#fca5a5;font-weight:bold;">Current Ban</div>
+              <div style="color:#fecaca;font-size:0.9rem;">Reason: ${player.ban_reason || 'No reason'}</div>
+              <div style="color:#fecaca;font-size:0.9rem;">Until: ${new Date(player.banned_until).toLocaleString()}</div>
+            </div>
+          ` : ''}
+
+          <div style="margin-bottom:1rem;">
+            <div style="color:#9ca3af;font-size:0.85rem;margin-bottom:0.5rem;">📜 Ban History (${banHistory?.length || 0})</div>
+            ${banHistory && banHistory.length > 0 ? `
+              <div style="background:#0f172a;padding:0.75rem;border-radius:8px;max-height:180px;overflow-y:auto;">
+                ${banHistory.map(ban => `
+                  <div style="padding:0.75rem;border-bottom:1px solid #374151;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                      <span style="color:#ef4444;font-weight:bold;">${ban.ban_duration || 'Unknown duration'}</span>
+                      <span style="color:#6b7280;font-size:0.75rem;">${new Date(ban.created_at).toLocaleString()}</span>
+                    </div>
+                    <div style="color:#fbbf24;font-size:0.85rem;margin-top:0.25rem;">${ban.ban_reason || 'No reason provided'}</div>
+                    <div style="color:#6b7280;font-size:0.75rem;margin-top:0.25rem;">By: ${ban.banned_by || 'System'}</div>
+                  </div>
+                `).join('')}
+              </div>
+            ` : '<div style="color:#6b7280;">No ban history</div>'}
+          </div>
+
+          <div style="margin-bottom:1rem;">
+            <div style="color:#9ca3af;font-size:0.85rem;margin-bottom:0.5rem;">🚨 Recent Cheat Detections (${cheatLogs?.length || 0})</div>
+            ${cheatLogs && cheatLogs.length > 0 ? `
+              <div style="background:#0f172a;padding:0.75rem;border-radius:8px;max-height:150px;overflow-y:auto;">
+                ${cheatLogs.map(log => `
+                  <div style="padding:0.5rem 0;border-bottom:1px solid #374151;">
+                    <span class="severity-badge severity-${log.severity}">${log.severity}</span>
+                    <span style="color:#9ca3af;margin-left:0.5rem;">${new Date(log.created_at).toLocaleString()}</span>
+                  </div>
+                `).join('')}
+              </div>
+            ` : '<div style="color:#6b7280;">No cheat detections</div>'}
+          </div>
+
+          <div style="display:flex;gap:0.5rem;margin-top:1.5rem;">
+            ${isBanned 
+              ? `<button class="action-btn btn-unban" onclick="unbanPlayer('${player.id}'); this.closest('.modal-overlay').remove();">Unban Player</button>`
+              : `<button class="action-btn btn-ban" onclick="showBanModal('${player.id}', '${player.username}'); this.closest('.modal-overlay').remove();">Ban Player</button>`
+            }
+            <button class="action-btn btn-dismiss" onclick="this.closest('.modal-overlay').remove()">Close</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    // Load cheat logs
+    async function loadCheatLogs() {
+      const severity = document.getElementById('filter-severity').value;
+      const reviewed = document.getElementById('filter-reviewed').value;
+
+      let query = supabase
+        .from('cheat_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (severity) query = query.eq('severity', severity);
+      if (reviewed !== '') query = query.eq('reviewed', reviewed === 'true');
+
+      const { data, error } = await query;
+
+      const tbody = document.getElementById('cheats-tbody');
+      if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No cheat logs found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = data.map(log => {
+        const logData = typeof log.data === 'string' ? JSON.parse(log.data) : log.data;
+        const flags = logData?.flags?.join(', ') || '-';
+        const gameType = logData?.gameType || '-';
+        
+        return `
+          <tr>
+            <td>${new Date(log.created_at).toLocaleString()}</td>
+            <td><strong>${log.username || 'Unknown'}</strong><br><span style="color:#9ca3af;font-size:0.75rem;">${log.player_id?.substring(0,8)}...</span></td>
+            <td>${gameType}</td>
+            <td><span class="severity-badge severity-${log.severity}">${log.severity}</span></td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">${flags}</td>
+            <td>${log.auto_banned ? '✓ Yes' : 'No'}</td>
+            <td>
+              <button class="action-btn btn-view" onclick="viewCheatLog('${log.id}')">View</button>
+              ${!log.reviewed ? `<button class="action-btn btn-dismiss" onclick="markReviewed('${log.id}')">Dismiss</button>` : ''}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // View cheat log details
+    async function viewCheatLog(logId) {
+      const { data: log } = await supabase
+        .from('cheat_logs')
+        .select('*')
+        .eq('id', logId)
+        .single();
+
+      if (!log) return;
+
+      const logData = typeof log.data === 'string' ? JSON.parse(log.data) : log.data;
+      const intervals = logData?.clickIntervals || [];
+      const maxInterval = Math.max(...intervals, 1);
+      
+      const chartBars = intervals.map(i => 
+        `<div class="chart-bar" style="height:${(i/maxInterval)*100}%" title="${i}ms"></div>`
+      ).join('');
+
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+      modal.innerHTML = `
+        <div class="modal">
+          <div class="modal-header">
+            <div class="modal-title">🔍 Cheat Log Details</div>
+            <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+          </div>
+          
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+            <div>
+              <div style="color:#9ca3af;font-size:0.85rem;">Player</div>
+              <div style="color:white;font-weight:bold;">${log.username}</div>
+              <div style="color:#6b7280;font-size:0.75rem;">${log.player_id}</div>
+            </div>
+            <div>
+              <div style="color:#9ca3af;font-size:0.85rem;">Detected</div>
+              <div style="color:white;">${new Date(log.created_at).toLocaleString()}</div>
+            </div>
+            <div>
+              <div style="color:#9ca3af;font-size:0.85rem;">Severity</div>
+              <span class="severity-badge severity-${log.severity}">${log.severity}</span>
+            </div>
+            <div>
+              <div style="color:#9ca3af;font-size:0.85rem;">Auto-Banned</div>
+              <div style="color:${log.auto_banned ? '#ef4444' : '#22c55e'};">${log.auto_banned ? 'Yes' : 'No'}</div>
+            </div>
+          </div>
+
+          <div style="margin-bottom:1.5rem;">
+            <div style="color:#9ca3af;font-size:0.85rem;margin-bottom:0.5rem;">Detection Flags</div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+              ${(logData?.flags || []).map(f => `<span style="background:#dc2626;color:white;padding:4px 10px;border-radius:4px;font-size:0.8rem;">${f}</span>`).join('')}
+            </div>
+          </div>
+
+          <div style="margin-bottom:1.5rem;">
+            <div style="color:#9ca3af;font-size:0.85rem;margin-bottom:0.5rem;">Click Interval Pattern (ms between clicks)</div>
+            <div class="click-chart">${chartBars}</div>
+            <div style="color:#9ca3af;font-size:0.75rem;margin-top:0.5rem;">
+              Mean: ${logData?.evidence?.mean || '-'}ms | 
+              StdDev: ${logData?.evidence?.stdDev || '-'}ms | 
+              CV: ${logData?.evidence?.cv || '-'}
+            </div>
+          </div>
+
+          <div style="margin-bottom:1.5rem;">
+            <div style="color:#9ca3af;font-size:0.85rem;margin-bottom:0.5rem;">Raw Evidence Data</div>
+            <div class="evidence-box">${JSON.stringify(logData, null, 2)}</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Admin Notes</label>
+            <textarea class="form-textarea" id="admin-notes-${log.id}" placeholder="Add notes about this case...">${log.admin_notes || ''}</textarea>
+          </div>
+
+          <div style="display:flex;gap:0.5rem;margin-top:1.5rem;">
+            <button class="action-btn btn-ban" onclick="banPlayer('${log.player_id}', '${log.username}', 7, '${log.id}')">Ban 7 Days</button>
+            <button class="action-btn btn-ban" onclick="banPlayer('${log.player_id}', '${log.username}', 30, '${log.id}')">Ban 30 Days</button>
+            <button class="action-btn btn-ban" onclick="banPlayer('${log.player_id}', '${log.username}', 365, '${log.id}')">Ban 1 Year</button>
+            <button class="action-btn btn-dismiss" onclick="markReviewed('${log.id}', 'FALSE_POSITIVE')">False Positive</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    // Mark as reviewed
+    async function markReviewed(logId, action = 'DISMISSED') {
+      const notes = document.getElementById(`admin-notes-${logId}`)?.value || '';
+      
+      await supabase
+        .from('cheat_logs')
+        .update({
+          reviewed: true,
+          action_taken: action,
+          admin_notes: notes,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('id', logId);
+
+      document.querySelector('.modal-overlay')?.remove();
+      loadCheatLogs();
+      loadStats();
+    }
+
+    // Ban player
+    async function banPlayer(playerId, username, days, logId) {
+      const banUntil = new Date();
+      banUntil.setDate(banUntil.getDate() + days);
+
+      await supabase
+        .from('profiles')
+        .update({
+          banned_until: banUntil.toISOString(),
+          ban_reason: `Admin ban: Cheating detected`,
+          ban_count: supabase.sql`ban_count + 1`
+        })
+        .eq('id', playerId);
+
+      // Also update the ban_count manually since sql template might not work
+      const { data: profile } = await supabase.from('profiles').select('ban_count').eq('id', playerId).single();
+      await supabase.from('profiles').update({ ban_count: (profile?.ban_count || 0) + 1 }).eq('id', playerId);
+
+      await markReviewed(logId, 'BANNED');
+      alert(`${username} has been banned for ${days} days.`);
+      loadStats();
+    }
+
+    // Load appeals
+    async function loadAppeals() {
+      const { data } = await supabase
+        .from('ban_appeals')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      const tbody = document.getElementById('appeals-tbody');
+      if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No appeals found</td></tr>';
+        return;
+      }
+
+      // Get all unique player IDs to check their ban status
+      const playerIds = [...new Set(data.map(a => a.player_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, banned_until, ban_reason')
+        .in('id', playerIds);
+      
+      const playerBanMap = {};
+      profiles?.forEach(p => { playerBanMap[p.id] = p; });
+
+      tbody.innerHTML = data.map(appeal => {
+        const player = playerBanMap[appeal.player_id];
+        const isBanned = player?.banned_until && new Date(player.banned_until) > new Date();
+        
+        // Check if appeal is pending but ban has expired
+        const isExpired = appeal.status === 'pending' && !isBanned;
+        const displayStatus = isExpired ? 'expired' : appeal.status;
+        
+        // Format ban details for expired appeals
+        let banDetails = '';
+        if (isExpired) {
+          banDetails = '<br><span style="color:#9ca3af;font-size:0.75rem;">Ban ended before review</span>';
+        } else if (player?.banned_until) {
+          const banEnd = new Date(player.banned_until);
+          banDetails = `<br><span style="color:#9ca3af;font-size:0.75rem;">Ban until: ${banEnd.toLocaleString()}</span>`;
+        }
+        
+        return `
+          <tr style="${isExpired ? 'opacity:0.7;' : ''}">
+            <td>${new Date(appeal.created_at).toLocaleString()}</td>
+            <td>
+              <strong>${appeal.username || 'Unknown'}</strong>
+              ${banDetails}
+            </td>
+            <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;">${appeal.appeal_reason}</td>
+            <td><span class="status-badge status-${displayStatus}">${displayStatus.toUpperCase()}</span></td>
+            <td>
+              ${appeal.status === 'pending' && !isExpired ? `
+                <button class="action-btn btn-unban" onclick="handleAppeal('${appeal.id}', '${appeal.player_id}', 'approved')">Approve</button>
+                <button class="action-btn btn-ban" onclick="handleAppeal('${appeal.id}', '${appeal.player_id}', 'denied')">Deny</button>
+              ` : isExpired ? `
+                <button class="action-btn btn-dismiss" onclick="markAppealExpired('${appeal.id}')">Mark Reviewed</button>
+              ` : '-'}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Mark expired appeal as reviewed
+    async function markAppealExpired(appealId) {
+      await supabase
+        .from('ban_appeals')
+        .update({
+          status: 'expired',
+          admin_response: 'Ban expired before review',
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('id', appealId);
+      
+      loadAppeals();
+    }
+
+    // Handle appeal
+    async function handleAppeal(appealId, playerId, status) {
+      const response = prompt(`Enter response message for the player:`);
+      if (response === null) return;
+
+      await supabase
+        .from('ban_appeals')
+        .update({
+          status,
+          admin_response: response,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('id', appealId);
+
+      if (status === 'approved') {
+        await supabase
+          .from('profiles')
+          .update({ banned_until: null, ban_reason: null })
+          .eq('id', playerId);
+      }
+
+      loadAppeals();
+      loadStats();
+      alert(`Appeal ${status}.`);
+    }
+
+    // Load active bans
+    async function loadBans() {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, username, banned_until, ban_reason, ban_count')
+        .gt('banned_until', new Date().toISOString())
+        .order('banned_until', { ascending: false });
+
+      const tbody = document.getElementById('bans-tbody');
+      if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No active bans</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = data.map(ban => `
+        <tr>
+          <td><strong>${ban.username || 'Unknown'}</strong><br><span style="color:#9ca3af;font-size:0.75rem;">${ban.id?.substring(0,8)}...</span></td>
+          <td>${ban.ban_reason || '-'}</td>
+          <td>${new Date(ban.banned_until).toLocaleString()}</td>
+          <td>${ban.ban_count || 1}</td>
+          <td>
+            <button class="action-btn btn-unban" onclick="unbanPlayer('${ban.id}')">Unban</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // Unban player
+    async function unbanPlayer(playerId) {
+      if (!confirm('Are you sure you want to unban this player?')) return;
+      
+      await supabase
+        .from('profiles')
+        .update({ banned_until: null, ban_reason: null })
+        .eq('id', playerId);
+
+      loadBans();
+      loadStats();
+      alert('Player unbanned.');
+    }
+
+    // Init - check admin access first
+    async function init() {
+      const hasAccess = await checkAdminAccess();
+      if (hasAccess) {
+        loadStats();
+        loadCheatLogs();
+      }
+    }
+    init();
+  </script>
+</body>
+</html>
