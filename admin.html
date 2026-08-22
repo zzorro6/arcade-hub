@@ -302,6 +302,7 @@
     <!-- Tabs -->
     <div class="tabs">
       <button class="tab active" onclick="showTab('operator')">💰 Operator Dashboard</button>
+      <button class="tab" onclick="showTab('deposits')">💳 Deposit History</button>
       <button class="tab" onclick="showTab('players')">👥 All Players</button>
       <button class="tab" onclick="showTab('spins')">🎡 Spin Wheel</button>
       <button class="tab" onclick="showTab('bans')">🚫 Active Bans</button>
@@ -493,6 +494,71 @@
           <tbody id="operator-tbody"></tbody>
         </table>
       </div>
+
+      <!-- Deposit History Tab -->
+      <div id="deposits-tab" style="display:none;">
+        <div style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+          <div id="dep-filter-group" style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+            <button class="op-filter-btn" data-filter="hour" onclick="setDepositFilter('hour')">Last Hour</button>
+            <button class="op-filter-btn" data-filter="day" onclick="setDepositFilter('day')">Today</button>
+            <button class="op-filter-btn" data-filter="week" onclick="setDepositFilter('week')">This Week</button>
+            <button class="op-filter-btn" data-filter="month" onclick="setDepositFilter('month')">This Month</button>
+            <button class="op-filter-btn active" data-filter="all" onclick="setDepositFilter('all')">All Time</button>
+          </div>
+          <button class="action-btn btn-view" onclick="loadDepositHistory()" style="padding:0.75rem 1.5rem;">Refresh</button>
+        </div>
+        <div class="stats-grid" style="margin-bottom:1.5rem;">
+          <div class="stat-card">
+            <div class="stat-value" id="dep-stat-total">-</div>
+            <div class="stat-label" id="dep-stat-total-label">Total Deposited (All Time)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="dep-stat-count">-</div>
+            <div class="stat-label" id="dep-stat-count-label">Successful Deposits (All Time)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="dep-stat-avg">-</div>
+            <div class="stat-label">Average Deposit</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="dep-stat-depositors">-</div>
+            <div class="stat-label">Unique Depositors (All Time)</div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:0.5rem;display:flex;justify-content:space-between;align-items:center;">
+          <div style="color:white;font-weight:600;">Depositors (click a player to view full history)</div>
+          <input type="text" id="depositor-search" placeholder="Search by username..."
+            style="background:#0f172a;border:1px solid #374151;border-radius:8px;padding:0.5rem 0.75rem;color:white;font-size:0.85rem;"
+            oninput="renderDepositorsTable()">
+        </div>
+        <table class="data-table" id="depositors-table" style="margin-bottom:1.5rem;">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Total Deposited</th>
+              <th># Deposits</th>
+              <th>Last Deposit</th>
+              <th>Method(s)</th>
+            </tr>
+          </thead>
+          <tbody id="depositors-tbody"></tbody>
+        </table>
+
+        <div style="color:white;font-weight:600;margin-bottom:0.5rem;">Recent Deposits</div>
+        <table class="data-table" id="deposits-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Username</th>
+              <th>Amount</th>
+              <th>Method</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="deposits-tbody"></tbody>
+        </table>
+      </div>
     </div>
   </main>
 
@@ -597,6 +663,7 @@
       document.getElementById('players-tab').style.display = tab === 'players' ? 'block' : 'none';
       document.getElementById('spins-tab').style.display = tab === 'spins' ? 'block' : 'none';
       document.getElementById('operator-tab').style.display = tab === 'operator' ? 'block' : 'none';
+      document.getElementById('deposits-tab').style.display = tab === 'deposits' ? 'block' : 'none';
       document.getElementById('filter-bar').style.display = tab === 'cheats' ? 'flex' : 'none';
 
       if (tab === 'cheats') loadCheatLogs();
@@ -605,6 +672,7 @@
       if (tab === 'players') loadAllPlayers();
       if (tab === 'spins') loadSpinLogs();
       if (tab === 'operator') loadOperatorDashboard();
+      if (tab === 'deposits') loadDepositHistory();
     }
 
     // All players data cache for search
@@ -1582,6 +1650,263 @@
         tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Error: ' + e.message + '</td></tr>';
         feesByGameEl.textContent = 'Error loading fees by game.';
       }
+    }
+
+    // Deposit history time filter state
+    let depositFilter = 'all';
+    const DEP_FILTER_LABELS = {
+      hour: 'Last Hour',
+      day: 'Today',
+      week: 'This Week',
+      month: 'This Month',
+      all: 'All Time',
+    };
+    const DEP_METHOD_LABELS = {
+      square: 'Card',
+      opennode: 'Bitcoin',
+    };
+    let depositorsCache = [];
+
+    function getDepositFilterCutoff(filter) {
+      const now = new Date();
+      if (filter === 'hour') return new Date(now.getTime() - 60 * 60 * 1000);
+      if (filter === 'day') {
+        const d = new Date(now);
+        d.setHours(0, 0, 0, 0);
+        return d;
+      }
+      if (filter === 'week') return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      if (filter === 'month') return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      return null; // all time
+    }
+
+    function setDepositFilter(filter) {
+      depositFilter = filter;
+      document.querySelectorAll('#dep-filter-group .op-filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-filter') === filter);
+      });
+      loadDepositHistory();
+    }
+
+    function formatDepositMethod(provider) {
+      return DEP_METHOD_LABELS[provider] || provider || 'Unknown';
+    }
+
+    // Load + render the deposit history dashboard
+    async function loadDepositHistory() {
+      const depTbody = document.getElementById('deposits-tbody');
+      const label = DEP_FILTER_LABELS[depositFilter] || 'All Time';
+      document.getElementById('dep-stat-total-label').textContent = `Total Deposited (${label})`;
+      document.getElementById('dep-stat-count-label').textContent = `Successful Deposits (${label})`;
+      depTbody.innerHTML = '<tr><td colspan="5" class="empty-state">Loading...</td></tr>';
+      document.getElementById('depositors-tbody').innerHTML = '<tr><td colspan="5" class="empty-state">Loading...</td></tr>';
+
+      try {
+        const cutoff = getDepositFilterCutoff(depositFilter);
+        let query = adminSb
+          .from('deposits')
+          .select('id, user_id, cash_amount, provider, status, created_at')
+          .order('created_at', { ascending: false })
+          .limit(5000);
+        if (cutoff) {
+          query = query.gte('created_at', cutoff.toISOString());
+        }
+        const { data, error } = await query;
+
+        if (error) {
+          console.error('Error loading deposit history:', error);
+          depTbody.innerHTML = '<tr><td colspan="5" class="empty-state">Error: ' + error.message + '</td></tr>';
+          document.getElementById('depositors-tbody').innerHTML = '<tr><td colspan="5" class="empty-state">Error loading data</td></tr>';
+          return;
+        }
+
+        if (!data || data.length === 0) {
+          document.getElementById('dep-stat-total').textContent = '$0.00';
+          document.getElementById('dep-stat-count').textContent = '0';
+          document.getElementById('dep-stat-avg').textContent = '$0.00';
+          document.getElementById('dep-stat-depositors').textContent = '0';
+          depTbody.innerHTML = '<tr><td colspan="5" class="empty-state">No deposits yet</td></tr>';
+          document.getElementById('depositors-tbody').innerHTML = '<tr><td colspan="5" class="empty-state">No depositors yet</td></tr>';
+          depositorsCache = [];
+          return;
+        }
+
+        // Resolve usernames
+        const userIds = Array.from(new Set(data.map(d => d.user_id).filter(Boolean)));
+        let userNamesById = {};
+        if (userIds.length > 0) {
+          const { data: profiles, error: profilesError } = await adminSb
+            .from('profiles')
+            .select('id, username')
+            .in('id', userIds);
+          if (!profilesError && profiles) {
+            userNamesById = Object.fromEntries(profiles.map(p => [p.id, p.username || 'Unknown']));
+          }
+        }
+
+        // Stats (successful deposits only, i.e. status not explicitly 'failed'/'pending' if present)
+        const successful = data.filter(d => !d.status || d.status === 'completed' || d.status === 'paid' || d.status === 'succeeded');
+        const totalAmount = successful.reduce((sum, d) => sum + Number(d.cash_amount ?? 0), 0);
+
+        document.getElementById('dep-stat-total').textContent = `$${totalAmount.toFixed(2)}`;
+        document.getElementById('dep-stat-count').textContent = successful.length;
+        document.getElementById('dep-stat-avg').textContent = successful.length > 0
+          ? `$${(totalAmount / successful.length).toFixed(2)}`
+          : '$0.00';
+
+        // Build per-user aggregation for the depositors table
+        const byUser = new Map();
+        for (const d of data) {
+          const uid = d.user_id;
+          if (!uid) continue;
+          const entry = byUser.get(uid) || {
+            userId: uid,
+            username: userNamesById[uid] || 'Unknown',
+            total: 0,
+            count: 0,
+            lastAt: null,
+            methods: new Set(),
+          };
+          const isSuccess = !d.status || d.status === 'completed' || d.status === 'paid' || d.status === 'succeeded';
+          if (isSuccess) {
+            entry.total += Number(d.cash_amount ?? 0);
+            entry.count += 1;
+          }
+          entry.methods.add(formatDepositMethod(d.provider));
+          if (!entry.lastAt || (d.created_at && d.created_at > entry.lastAt)) {
+            entry.lastAt = d.created_at;
+          }
+          byUser.set(uid, entry);
+        }
+
+        depositorsCache = Array.from(byUser.values())
+          .filter(e => e.count > 0)
+          .sort((a, b) => b.total - a.total);
+
+        document.getElementById('dep-stat-depositors').textContent = depositorsCache.length;
+
+        renderDepositorsTable();
+
+        // Recent deposits table (most recent 200 shown)
+        depTbody.innerHTML = data.slice(0, 200).map(d => {
+          const username = userNamesById[d.user_id] || 'Unknown';
+          const timeLabel = d.created_at ? new Date(d.created_at).toLocaleString() : '-';
+          const statusLabel = d.status || 'completed';
+          const statusColor = (statusLabel === 'failed') ? '#ef4444' : (statusLabel === 'pending') ? '#f59e0b' : '#22c55e';
+          return `
+            <tr>
+              <td>${timeLabel}</td>
+              <td>${username}</td>
+              <td style="color:#22c55e;">$${Number(d.cash_amount ?? 0).toFixed(2)}</td>
+              <td>${formatDepositMethod(d.provider)}</td>
+              <td style="color:${statusColor};">${statusLabel}</td>
+            </tr>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error('Exception loading deposit history:', e);
+        depTbody.innerHTML = '<tr><td colspan="5" class="empty-state">Error: ' + e.message + '</td></tr>';
+        document.getElementById('depositors-tbody').innerHTML = '<tr><td colspan="5" class="empty-state">Error loading data</td></tr>';
+      }
+    }
+
+    function renderDepositorsTable() {
+      const tbody = document.getElementById('depositors-tbody');
+      const search = (document.getElementById('depositor-search')?.value || '').trim().toLowerCase();
+      const filtered = search
+        ? depositorsCache.filter(e => e.username.toLowerCase().includes(search))
+        : depositorsCache;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No depositors found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(e => {
+        const lastLabel = e.lastAt ? new Date(e.lastAt).toLocaleString() : '-';
+        return `
+          <tr style="cursor:pointer;" onclick="showDepositorHistory('${e.userId}', '${e.username.replace(/'/g, "\\'")}')">
+            <td style="color:#60a5fa;text-decoration:underline;">${e.username}</td>
+            <td style="color:#22c55e;">$${e.total.toFixed(2)}</td>
+            <td>${e.count}</td>
+            <td>${lastLabel}</td>
+            <td>${Array.from(e.methods).join(', ')}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Show full deposit history for a single depositor
+    async function showDepositorHistory(userId, username) {
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+      modal.innerHTML = `
+        <div class="modal" style="max-width:600px;">
+          <div class="modal-header">
+            <div class="modal-title">💳 Deposit History — ${username}</div>
+            <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+          </div>
+          <div id="depositor-history-body">Loading...</div>
+          <div style="display:flex;gap:0.5rem;margin-top:1.5rem;">
+            <button class="action-btn btn-dismiss" onclick="this.closest('.modal-overlay').remove()">Close</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      const { data, error } = await adminSb
+        .from('deposits')
+        .select('id, cash_amount, provider, status, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+      const bodyEl = modal.querySelector('#depositor-history-body');
+      if (error) {
+        bodyEl.innerHTML = `<div style="color:#ef4444;">Error loading history: ${error.message}</div>`;
+        return;
+      }
+      if (!data || data.length === 0) {
+        bodyEl.innerHTML = '<div style="color:#6b7280;">No deposits found for this player.</div>';
+        return;
+      }
+
+      const total = data
+        .filter(d => !d.status || d.status === 'completed' || d.status === 'paid' || d.status === 'succeeded')
+        .reduce((sum, d) => sum + Number(d.cash_amount ?? 0), 0);
+
+      bodyEl.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+          <div>
+            <div style="color:#9ca3af;font-size:0.85rem;">Total Deposited</div>
+            <div style="color:#22c55e;font-weight:bold;font-size:1.2rem;">$${total.toFixed(2)}</div>
+          </div>
+          <div>
+            <div style="color:#9ca3af;font-size:0.85rem;">Total Deposits</div>
+            <div style="color:white;font-weight:bold;font-size:1.2rem;">${data.length}</div>
+          </div>
+        </div>
+        <div style="background:#0f172a;padding:0.75rem;border-radius:8px;max-height:320px;overflow-y:auto;">
+          ${data.map(d => {
+            const timeLabel = d.created_at ? new Date(d.created_at).toLocaleString() : '-';
+            const statusLabel = d.status || 'completed';
+            const statusColor = (statusLabel === 'failed') ? '#ef4444' : (statusLabel === 'pending') ? '#f59e0b' : '#22c55e';
+            return `
+              <div style="padding:0.6rem 0;border-bottom:1px solid #374151;display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <span style="color:#22c55e;font-weight:bold;">$${Number(d.cash_amount ?? 0).toFixed(2)}</span>
+                  <span style="color:#9ca3af;margin-left:0.5rem;">${formatDepositMethod(d.provider)}</span>
+                </div>
+                <div style="text-align:right;">
+                  <div style="color:${statusColor};font-size:0.85rem;">${statusLabel}</div>
+                  <div style="color:#6b7280;font-size:0.75rem;">${timeLabel}</div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
     }
 
     // Init - check admin access first
