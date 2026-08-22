@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Geometry Rush</title>
+    <link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+    <div class="game-container">
+        <div class="header">
+            <h1 class="title">GEOMETRY RUSH</h1>
+            <div class="stats-row">
+                <div class="stat-box">
+                    <span class="stat-label">SCORE</span>
+                    <span id="score" class="stat-value">0</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">BEST</span>
+                    <span id="bestScore" class="stat-value">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="canvas-wrap">
+            <canvas id="gameCanvas"></canvas>
+            <div id="progressBar" class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+        </div>
+
+        <div class="controls">
+            <div class="control-info">
+                <span class="key">SPACE</span> / <span class="key">CLICK</span> / <span class="key">TAP</span> to Jump
+                &nbsp;&middot;&nbsp;
+                <span class="key">P</span> Pause
+            </div>
+            <div class="button-row">
+                <button id="startBtn" class="btn btn-start">START</button>
+                <button id="restartBtn" class="btn btn-restart" style="display:none;">RETRY</button>
+                <button id="soundBtn" class="btn btn-sound">SOUND ON</button>
+            </div>
+        </div>
+
+        <div id="gameOver" class="overlay" style="display:none;">
+            <h2 class="overlay-title dead">GAME OVER</h2>
+            <p class="overlay-stat">Score: <span id="finalScore" class="hl">0</span></p>
+            <p class="overlay-stat">Distance: <span id="finalDist" class="hl">0</span>%</p>
+            <p class="overlay-stat attempt-line">Attempt <span id="attemptNum" class="hl">1</span></p>
+        </div>
+
+        <div id="pauseMenu" class="overlay" style="display:none;">
+            <h2 class="overlay-title">PAUSED</h2>
+            <button id="resumeBtn" class="btn btn-start">RESUME</button>
+        </div>
+    </div>
+
+    <script src="src/game.js"></script>
+</body>
+</html>

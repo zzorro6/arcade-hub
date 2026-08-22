@@ -1102,6 +1102,7 @@ function setCashEntryIndex(nextIndex) {
   if (typeof updateStackCashUI === "function") updateStackCashUI();
   if (typeof updateNightShiftCashUI === "function") updateNightShiftCashUI();
   if (typeof updateRollingRushCashUI === "function") updateRollingRushCashUI();
+  if (typeof updateGeometryRushCashUI === "function") updateGeometryRushCashUI();
 }
 
 function increaseCashEntry() {
@@ -1926,6 +1927,13 @@ const gameCards = [
     mode: "1v1 skill",
     comingSoon: false,
   },
+  {
+    id: "geometry-rush",
+    title: "Geometry Rush",
+    description: "Fast-paced side-scrolling jumper. Time your jumps past spikes and blocks, chain combos off orbs — one hit ends the run, highest score wins.",
+    mode: "1v1 skill",
+    comingSoon: false,
+  },
 ];
 
 function renderHub() {
@@ -2065,6 +2073,8 @@ let nightShiftState = null;
 let nightShiftMessageHandler = null;
 let rollingRushState = null;
 let rollingRushMessageHandler = null;
+let geometryRushState = null;
+let geometryRushMessageHandler = null;
 let germsWagerMode = "cash"; // "coin" or "cash" (coin wagers hidden for now)
 
 function renderGameScreen() {
@@ -2144,6 +2154,8 @@ function renderGameScreen() {
     mountNightShift();
   } else if (currentGameId === "rolling-rush") {
     mountRollingRush();
+  } else if (currentGameId === "geometry-rush") {
+    mountGeometryRush();
   } else {
     const root = document.getElementById("game-root");
     root.textContent = "Prototype coming soon.";
@@ -2964,6 +2976,252 @@ async function handleRollingRushGameOver(score) {
   }
 }
 
+function mountGeometryRush() {
+  const root = document.getElementById("game-root");
+  root.innerHTML = `
+    <div class="germs-layout">
+      <div class="germs-top">
+        <div class="small-text">Score this run</div>
+        <div class="chicken-score" id="geometry-rush-score">0</div>
+
+        <button class="btn btn-secondary" id="geometry-rush-wager">Start Tournament</button>
+
+        <div id="geometry-rush-cash-controls">
+          <div class="bet-controls">
+            <button class="bet-btn" id="geometry-rush-cash-down">-</button>
+            <span class="bet-label" id="geometry-rush-cash-label">Entry: $1.00</span>
+            <button class="bet-btn" id="geometry-rush-cash-up">+</button>
+          </div>
+          <div class="small-text" id="geometry-rush-cash-payout" style="margin-top:0.15rem; min-height:1em;">Win: $1.70</div>
+        </div>
+      </div>
+
+      <div class="card" data-leaderboard-card="true" style="margin-top:0.5rem; margin-bottom:0.75rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
+          <h3 class="section-title" style="margin-bottom:0;">Top 5 - Geometry Rush</h3>
+          <button id="geometry-rush-leaderboard-refresh" class="btn btn-secondary" style="padding:0.2rem 0.6rem;font-size:0.7rem;">Refresh</button>
+        </div>
+        <div id="geometry-rush-leaderboard" class="small-text" style="margin-top:0.4rem; max-height:180px; overflow-y:auto;"></div>
+      </div>
+
+      <div class="geometry-rush-frame-wrap" style="position:relative;width:100%;aspect-ratio:16/9;background:#0a0a1a;border-radius:8px;overflow:hidden;">
+        <iframe
+          id="geometry-rush-iframe"
+          src="games/geometry-rush/index.html"
+          style="width:100%;height:100%;border:0;display:block;"
+          allow="autoplay"
+        ></iframe>
+      </div>
+      <div class="small-text" style="margin-top:0.5rem;">Click Start Tournament for a fresh cash run, then click START inside the game and use Space / Arrow Up / click / tap to jump over spikes and blocks. One hit ends the run — your final score is shown and submitted.</div>
+      <div class="small-text" id="geometry-rush-wager-result" style="margin-top:0.25rem; min-height:1em;"></div>
+      <div id="geometry-rush-provably-fair" style="margin-top:0.5rem;display:none;"></div>
+    </div>
+  `;
+
+  const wagerBtn = document.getElementById("geometry-rush-wager");
+  if (wagerBtn) {
+    wagerBtn.addEventListener("click", handleGeometryRushWagerClick);
+  }
+
+  const cashDown = document.getElementById("geometry-rush-cash-down");
+  const cashUp = document.getElementById("geometry-rush-cash-up");
+  if (cashDown) cashDown.addEventListener("click", () => decreaseCashEntry());
+  if (cashUp) cashUp.addEventListener("click", () => increaseCashEntry());
+
+  updateGeometryRushCashUI();
+
+  loadLeaderboardForGame("geometry-rush", "geometry-rush-leaderboard");
+  const lbRefresh = document.getElementById("geometry-rush-leaderboard-refresh");
+  if (lbRefresh) {
+    lbRefresh.addEventListener("click", () => {
+      loadLeaderboardForGame("geometry-rush", "geometry-rush-leaderboard");
+    });
+  }
+
+  if (geometryRushMessageHandler) {
+    window.removeEventListener("message", geometryRushMessageHandler);
+  }
+  geometryRushMessageHandler = (event) => {
+    if (!event.data || event.data.type !== "geometry-rush-gameover") return;
+    const iframe = document.getElementById("geometry-rush-iframe");
+    if (!iframe || event.source !== iframe.contentWindow) return;
+
+    const score = Number(event.data.score) || 0;
+    const scoreEl = document.getElementById("geometry-rush-score");
+    if (scoreEl) scoreEl.textContent = String(score);
+
+    handleGeometryRushGameOver(score);
+  };
+  window.addEventListener("message", geometryRushMessageHandler);
+
+  if (geometryRushState && geometryRushState.inWager) {
+    if (wagerBtn) wagerBtn.style.display = "none";
+    if (geometryRushState.serverSeedHash) {
+      const pfEl = document.getElementById("geometry-rush-provably-fair");
+      if (pfEl) {
+        pfEl.style.display = "block";
+        pfEl.innerHTML = renderProvablyFairBadge(geometryRushState.serverSeedHash, true);
+        pfEl.onclick = () => window.showProvablyFairInfo(geometryRushState.serverSeedHash, geometryRushState.serverSeed, geometryRushState.matchId);
+      }
+    }
+  }
+}
+
+function updateGeometryRushCashUI() {
+  const entry = getCurrentCashEntry();
+  const total = entry * 2;
+  const fee = total * 0.15;
+  const payout = total - fee;
+
+  const cashLabel = document.getElementById("geometry-rush-cash-label");
+  if (cashLabel) {
+    cashLabel.textContent = `Entry: $${entry.toFixed(2)}`;
+  }
+  const cashPayout = document.getElementById("geometry-rush-cash-payout");
+  if (cashPayout) {
+    cashPayout.textContent = `Win: $${payout.toFixed(2)}`;
+  }
+  const cashUp = document.getElementById("geometry-rush-cash-up");
+  const cashDown = document.getElementById("geometry-rush-cash-down");
+  if (cashUp) cashUp.disabled = currentCashEntryIndex >= CASH_ENTRY_AMOUNTS.length - 1;
+  if (cashDown) cashDown.disabled = currentCashEntryIndex <= 0;
+}
+
+async function handleGeometryRushWagerClick() {
+  if (!supabaseClient || !currentUser) {
+    openAuthModal("login");
+    return;
+  }
+
+  const canPlay = await checkBanBeforeGame('geometry_rush');
+  if (!canPlay) return;
+
+  const btn = document.getElementById("geometry-rush-wager");
+  if (!btn) return;
+
+  const cashEntry = getCurrentCashEntry();
+
+  const now = Date.now();
+  const last = lastWagerAtByGame["geometry-rush"] || 0;
+  if (now - last < WAGER_COOLDOWN_MS) {
+    const remaining = Math.ceil((WAGER_COOLDOWN_MS - (now - last)) / 1000);
+    alert(`Please wait ${remaining}s before starting another Geometry Rush tournament.`);
+    return;
+  }
+
+  if (geometryRushState && geometryRushState.inWager) {
+    btn.style.display = "none";
+    alert("You already have an active tournament run. Finish it before starting another.");
+    return;
+  }
+
+  if ((currentUser.cash_balance ?? 0) < cashEntry) {
+    alert(`Not enough cash for a $${cashEntry.toFixed(2)} entry. Please deposit more.`);
+    return;
+  }
+
+  btn.disabled = true;
+  btn.style.display = "none";
+
+  try {
+    const match = await createCashMatchForGame("geometry-rush", cashEntry);
+    if (!match) {
+      throw new Error("Could not create cash match.");
+    }
+    const slot = match.player2_id === currentUser.id ? "player2" : "player1";
+
+    lastWagerAtByGame["geometry-rush"] = now;
+
+    geometryRushState = geometryRushState || {};
+    geometryRushState.inWager = true;
+    geometryRushState.matchId = match.id;
+    geometryRushState.playerSlot = slot;
+    geometryRushState.gameOverReported = false;
+    geometryRushState.cashEntry = cashEntry;
+    geometryRushState.provablyFairId = match.provablyFairId || null;
+    geometryRushState.serverSeedHash = match.serverSeedHash || null;
+    geometryRushState.serverSeed = match.serverSeed || null;
+
+    await loadCurrentUser();
+
+    // Force a fresh run for this wager (clears any practice-mode state).
+    const iframe = document.getElementById("geometry-rush-iframe");
+    if (iframe) {
+      iframe.src = iframe.src;
+    }
+
+    const scoreEl = document.getElementById("geometry-rush-score");
+    if (scoreEl) scoreEl.textContent = "0";
+
+    const resultEl = document.getElementById("geometry-rush-wager-result");
+    if (resultEl) {
+      resultEl.textContent = `Match ${slot === "player2" ? "found" : "created"} ($${cashEntry.toFixed(2)} cash). Click START inside the game — your score at the first crash is submitted.`;
+    }
+
+    const pfEl = document.getElementById("geometry-rush-provably-fair");
+    if (pfEl && geometryRushState.serverSeedHash) {
+      pfEl.style.display = "block";
+      pfEl.innerHTML = renderProvablyFairBadge(geometryRushState.serverSeedHash, true);
+      pfEl.onclick = () => window.showProvablyFairInfo(geometryRushState.serverSeedHash, null, geometryRushState.matchId);
+    }
+  } catch (err) {
+    console.error(err);
+    alert(err.message || "Failed to start wager match.");
+  } finally {
+    if (btn && !(geometryRushState && geometryRushState.inWager)) {
+      btn.disabled = false;
+    }
+  }
+}
+
+async function handleGeometryRushGameOver(score) {
+  if (
+    !supabaseClient ||
+    !currentUser ||
+    !geometryRushState?.inWager ||
+    !geometryRushState.matchId ||
+    !geometryRushState.playerSlot ||
+    geometryRushState.gameOverReported
+  ) {
+    return;
+  }
+
+  geometryRushState.gameOverReported = true;
+
+  const cashEntry = geometryRushState.cashEntry;
+
+  try {
+    await submitMatchScore(geometryRushState.matchId, geometryRushState.playerSlot, score);
+    const resultEl = document.getElementById("geometry-rush-wager-result");
+    if (resultEl) {
+      resultEl.textContent = `$${cashEntry.toFixed(2)} cash run finished. Score: ${score}. Awaiting other player...`;
+    }
+
+    if (geometryRushState.provablyFairId) {
+      await ProvablyFair.revealGame(geometryRushState.provablyFairId);
+      const pfEl = document.getElementById("geometry-rush-provably-fair");
+      if (pfEl && geometryRushState.serverSeedHash && geometryRushState.serverSeed) {
+        pfEl.innerHTML = renderProvablyFairBadge(geometryRushState.serverSeedHash, true);
+        pfEl.onclick = () => window.showProvablyFairInfo(geometryRushState.serverSeedHash, geometryRushState.serverSeed, geometryRushState.matchId);
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    alert(err.message || "Failed to submit wager score.");
+  } finally {
+    geometryRushState.inWager = false;
+    geometryRushState.matchId = null;
+    geometryRushState.playerSlot = null;
+    geometryRushState.cashEntry = null;
+
+    const btn = document.getElementById("geometry-rush-wager");
+    if (btn) {
+      btn.disabled = false;
+      btn.style.display = "";
+    }
+  }
+}
+
 function stopAllGames() {
   if (reactionTimeoutId) {
     clearTimeout(reactionTimeoutId);
@@ -3015,6 +3273,12 @@ function stopAllGames() {
     rollingRushMessageHandler = null;
   }
   rollingRushState = null;
+
+  if (geometryRushMessageHandler) {
+    window.removeEventListener("message", geometryRushMessageHandler);
+    geometryRushMessageHandler = null;
+  }
+  geometryRushState = null;
 }
 
 // --- Reaction Duel (single-player prototype) ---
@@ -5772,6 +6036,9 @@ async function submitMatchScore(matchId, playerSlot, score) {
     }
     if (gameId === "rolling-rush") {
       return document.getElementById("rolling-rush-wager-result");
+    }
+    if (gameId === "geometry-rush") {
+      return document.getElementById("geometry-rush-wager-result");
     }
     return null;
   }
