@@ -5409,7 +5409,15 @@ async function loadCurrentUser() {
     currentUser = profile;
   }
 
-  render();
+  // While actively inside a game (e.g. right after starting a wager), avoid
+  // a full re-render: it tears down and rebuilds the entire game screen,
+  // which kicks the browser out of fullscreen and reloads/restarts any
+  // embedded game iframe. Just refresh the visible balance text instead.
+  if (currentView === "game" && currentUser) {
+    updateBalanceDisplay();
+  } else {
+    render();
+  }
 }
 
 function getSpinInfo(user) {

@@ -45,18 +45,22 @@ var highText;
 var score;
 var highScore;
 var paused;
+var gameStarted;
+var countdownInterval;
 
 init();
 
 function init() {
   createScene();
+  render();
   update();
 }
 
 function createScene() {
   score = 0;
   highScore = localStorage.getItem("highScore") || 0;
-  paused = false;
+  paused = true;
+  gameStarted = false;
   treesInPath = [];
   treesPool = [];
   clock = new THREE.Clock();
@@ -186,6 +190,10 @@ function createTreesPool() {
 }
 
 function handleKeyDown(keyEvent) {
+  if (!gameStarted) {
+    triggerStart();
+    return;
+  }
   var validMove = true;
   if ((keyEvent.keyCode === 37 || keyEvent.keyCode === 65) && !paused) {
     if (currentLane == middleLane) {
@@ -221,6 +229,10 @@ function handleKeyDown(keyEvent) {
 }
 
 function handleSwipe(direction) {
+  if (!gameStarted) {
+    triggerStart();
+    return;
+  }
   var validMove = true;
   if (direction == 'right' && !paused) {
     if (currentLane == middleLane) {
@@ -475,19 +487,30 @@ function tightenTree(vertices, sides, currentTier) {
 
 function update() {
   if (!paused) {
-    rollingGroundSphere.rotation.x += rollingSpeed;
-    ball.rotation.x -= ballRollingSpeed;
+    // Normalize all per-frame movement to real elapsed time (dt), not just
+    // "one tick of requestAnimationFrame". Without this, the world/ball
+    // rotation speed (previously a fixed amount added every frame) runs
+    // proportionally to whatever frame rate the browser happens to hit —
+    // a smaller, cheaper-to-render canvas (e.g. non-fullscreen) can render
+    // at a much higher FPS than a large fullscreen canvas, making the game
+    // feel far too fast outside of fullscreen. Scaling by dt*60 keeps the
+    // original feel at a 60fps baseline while staying consistent at any
+    // frame rate.
+    var dt = Math.min(clock.getDelta(), 0.1);
+    var frameScale = dt * 60;
+    rollingGroundSphere.rotation.x += rollingSpeed * frameScale;
+    ball.rotation.x -= ballRollingSpeed * frameScale;
     if (ball.position.y <= heroBaseY) {
       jumping = false;
       bounceValue = Math.random() * 0.04 + 0.005;
     }
-    ball.position.y += bounceValue;
+    ball.position.y += bounceValue * frameScale;
     ball.position.x = THREE.Math.lerp(
       ball.position.x,
       currentLane,
-      4 * clock.getDelta()
+      4 * dt
     ); 
-    bounceValue -= gravity;
+    bounceValue -= gravity * frameScale;
     if (clock.getElapsedTime() > treeReleaseInterval) {
       clock.start();
       addPathTree();
@@ -681,3 +704,36 @@ function detectSwipe(id, func, deltaMin = 90) {
 }
 
 detectSwipe('body', (el, dir) => handleSwipe(dir));
+
+function triggerStart() {
+  if (gameStarted || countdownInterval) return;
+
+  var startPrompt = document.getElementById('startPrompt');
+  var countdownOverlay = document.getElementById('countdownOverlay');
+  if (startPrompt) startPrompt.classList.add('hidden');
+  if (countdownOverlay) countdownOverlay.classList.remove('hidden');
+
+  var count = 5;
+  if (countdownOverlay) countdownOverlay.textContent = String(count);
+
+  countdownInterval = setInterval(function () {
+    count -= 1;
+    if (count > 0) {
+      if (countdownOverlay) countdownOverlay.textContent = String(count);
+    } else {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+      if (countdownOverlay) countdownOverlay.classList.add('hidden');
+      gameStarted = true;
+      // Reset the clock so the frozen wait/countdown period isn't counted
+      // as one huge delta on the first post-countdown frame.
+      clock.start();
+      paused = false;
+    }
+  }, 1000);
+}
+
+var startPromptEl = document.getElementById('startPrompt');
+if (startPromptEl) {
+  startPromptEl.addEventListener('click', triggerStart);
+}
