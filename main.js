@@ -3,6 +3,11 @@
 const SUPABASE_URL = "https://wokarixqtacrqkupudom.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indva2FyaXhxdGFjcnFrdXB1ZG9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MDA4NjAsImV4cCI6MjA3OTE3Njg2MH0.rJKRCRYyJnzMv2uAoQ4NqjGRbCSa3nvELedbJIOGyAk";
 
+// --- Square config (client-safe: Application ID + Location ID are NOT secret) ---
+const SQUARE_APPLICATION_ID = "sq0idp-q3md1Qjk_f8vDVLtja_e0Q";
+const SQUARE_LOCATION_ID = "LHHF2CGR2B5YQ";
+const SQUARE_WEB_SDK_URL = "https://web.squarecdn.com/v1/square.js";
+
 let supabaseClient = null;
 
 if (SUPABASE_URL !== "https://YOUR-PROJECT.supabase.co") {
@@ -621,7 +626,7 @@ window.showProvablyFairInfo = function(serverSeedHash, serverSeed = null, gameId
         </div>
         
         <div style="margin-top:1rem;text-align:center;">
-          <a href="/arcade-hub/verify.html" target="_blank" class="btn btn-secondary" style="font-size:0.85rem;">
+          <a href="verify.html" target="_blank" class="btn btn-secondary" style="font-size:0.85rem;">
             Open Verification Tool →
           </a>
         </div>
@@ -635,11 +640,75 @@ window.showProvablyFairInfo = function(serverSeedHash, serverSeed = null, gameId
   });
 }
 
+let squareSdkLoadPromise = null;
+function loadSquareSdk() {
+  if (window.Square) return Promise.resolve(window.Square);
+  if (squareSdkLoadPromise) return squareSdkLoadPromise;
+
+  squareSdkLoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = SQUARE_WEB_SDK_URL;
+    script.onload = () => {
+      if (window.Square) resolve(window.Square);
+      else reject(new Error("Square SDK failed to load"));
+    };
+    script.onerror = () => reject(new Error("Square SDK failed to load"));
+    document.head.appendChild(script);
+  });
+
+  return squareSdkLoadPromise;
+}
+
+async function startCardDeposit(amountCash, sourceId) {
+  if (!supabaseClient) return { ok: false, error: "Not connected" };
+
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabaseClient.auth.getSession();
+
+  if (sessionError || !session || !session.access_token) {
+    console.error("No auth session found for card deposit", sessionError);
+    return { ok: false, error: "You must be logged in to deposit." };
+  }
+
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/functions/v1/create-square-payment`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ amountCash, sourceId }),
+      }
+    );
+
+    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      console.error("create-square-payment failed", res.status, json);
+      return { ok: false, error: json?.error || "Payment failed. Please try again." };
+    }
+
+    await loadCurrentUser();
+    return { ok: true };
+  } catch (err) {
+    console.error("Error calling create-square-payment", err);
+    return { ok: false, error: "Failed to reach payment processor. Please try again." };
+  }
+}
+
 function openDepositModal() {
   if (!supabaseClient) return;
 
   const existing = document.getElementById("deposit-modal-overlay");
   if (existing) existing.remove();
+
+  let depositMethod = "btc"; // 'btc' | 'card'
+  let squareCard = null;
+  let squarePayments = null;
 
   const overlay = document.createElement("div");
   overlay.id = "deposit-modal-overlay";
@@ -659,11 +728,13 @@ function openDepositModal() {
           Choose payment method
         </div>
         <div style="display:flex;gap:0.4rem;margin-bottom:0.4rem;flex-wrap:wrap;">
-          <button type="button" id="deposit-method-btc" class="btn" style="padding:0.35rem 0.7rem;font-size:0.8rem;">Bitcoin</button>
+          <button type="button" id="deposit-method-card" class="btn" style="padding:0.35rem 0.7rem;font-size:0.8rem;">Card</button>
+          <button type="button" id="deposit-method-btc" class="btn btn-secondary" style="padding:0.35rem 0.7rem;font-size:0.8rem;">Bitcoin</button>
           <button type="button" class="btn btn-secondary" disabled style="opacity:0.55;padding:0.35rem 0.7rem;font-size:0.8rem;">Apple Pay (coming soon)</button>
           <button type="button" class="btn btn-secondary" disabled style="opacity:0.55;padding:0.35rem 0.7rem;font-size:0.8rem;">Google Pay (coming soon)</button>
         </div>
-        <button class="btn" type="submit" id="deposit-submit" style="width:100%;margin-top:0.2rem;">Continue with Bitcoin</button>
+        <div id="square-card-container" style="display:none;margin-bottom:0.6rem;min-height:40px;"></div>
+        <button class="btn" type="submit" id="deposit-submit" style="width:100%;margin-top:0.2rem;">Pay with Card</button>
       </form>
       <div id="deposit-error" class="error" style="margin-top:0.4rem;min-height:1.1em;"></div>
       <div class="small-text" style="margin-top:0.3rem;color:#9ca3af;">
@@ -674,7 +745,12 @@ function openDepositModal() {
 
   document.body.appendChild(overlay);
 
-  const close = () => overlay.remove();
+  const close = () => {
+    if (squareCard) {
+      try { squareCard.destroy(); } catch (e) { /* ignore */ }
+    }
+    overlay.remove();
+  };
 
   const closeBtn = document.getElementById("deposit-modal-close");
   if (closeBtn) closeBtn.addEventListener("click", close);
@@ -686,9 +762,44 @@ function openDepositModal() {
   const form = document.getElementById("deposit-form");
   const errorEl = document.getElementById("deposit-error");
   const submitBtn = document.getElementById("deposit-submit");
+  const cardContainer = document.getElementById("square-card-container");
+  const btcBtn = document.getElementById("deposit-method-btc");
+  const cardBtn = document.getElementById("deposit-method-card");
+
+  async function ensureSquareCard() {
+    if (squareCard) return squareCard;
+    if (errorEl) errorEl.textContent = "";
+    try {
+      const Square = await loadSquareSdk();
+      squarePayments = Square.payments(SQUARE_APPLICATION_ID, SQUARE_LOCATION_ID);
+      squareCard = await squarePayments.card();
+      await squareCard.attach("#square-card-container");
+      return squareCard;
+    } catch (err) {
+      console.error("Failed to initialize Square card form", err);
+      if (errorEl) errorEl.textContent = "Could not load card payment form. Please try again.";
+      return null;
+    }
+  }
+
+  function setMethod(method) {
+    depositMethod = method;
+    if (cardBtn) cardBtn.className = method === "card" ? "btn" : "btn btn-secondary";
+    if (btcBtn) btcBtn.className = method === "btc" ? "btn" : "btn btn-secondary";
+    if (cardContainer) cardContainer.style.display = method === "card" ? "block" : "none";
+    if (submitBtn) submitBtn.textContent = method === "card" ? "Pay with Card" : "Continue with Bitcoin";
+    if (errorEl) errorEl.textContent = "";
+    if (method === "card") ensureSquareCard();
+  }
+
+  if (cardBtn) cardBtn.addEventListener("click", () => setMethod("card"));
+  if (btcBtn) btcBtn.addEventListener("click", () => setMethod("btc"));
+
+  // Default to card since it's the fastest path; pre-load the SDK.
+  setMethod("card");
 
   if (form && submitBtn) {
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (!supabaseClient) return;
 
@@ -701,6 +812,40 @@ function openDepositModal() {
 
       if (!Number.isFinite(amount) || amount < 1 || !Number.isInteger(amount)) {
         errorEl.textContent = "Enter a whole-dollar amount of at least $1.";
+        return;
+      }
+
+      if (depositMethod === "card") {
+        if (!squareCard) {
+          errorEl.textContent = "Card form is still loading. Please try again in a moment.";
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Processing...";
+
+        try {
+          const result = await squareCard.tokenize();
+          if (result.status !== "OK") {
+            const detail = result.errors?.[0]?.message || "Card validation failed.";
+            errorEl.textContent = detail;
+            return;
+          }
+
+          const outcome = await startCardDeposit(amount, result.token);
+          if (!outcome.ok) {
+            errorEl.textContent = outcome.error || "Payment failed. Please try again.";
+            return;
+          }
+
+          close();
+        } catch (err) {
+          console.error("Card deposit failed", err);
+          errorEl.textContent = "Something went wrong. Please try again.";
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Pay with Card";
+        }
         return;
       }
 
@@ -888,19 +1033,34 @@ let currentAuthMode = "login"; // "login" | "signup"
 let operatorMatchesFilter = "all"; // kept for potential future use
 let wagersFilter = "all"; // "all" | "wins" | "losses" | "today"
 
-const DAILY_BONUS_AMOUNT = 1000;
-const DAILY_BONUS_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+// Free Spin Wheel (replaces the old daily coin bonus).
+// NOTE: reuses the existing `last_daily_at` profiles column to track the last
+// spin claim time so no database migration is required. Cash winnings are
+// paid directly into cash_balance the instant a spin resolves.
+const SPIN_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 hours between free spins
+// Ordered highest-amount/lowest-count first so the even-distribution
+// placement algorithm spreads rare, valuable slices around the wheel first.
+const SPIN_WHEEL_PRIZE_GROUPS = [
+  { amount: 0.50, count: 1, color: "#facc15", textColor: "#3a2400", label: "50¢", jackpot: true },
+  { amount: 0.40, count: 2, color: "#fb923c", textColor: "#3a1600", label: "40¢" },
+  { amount: 0.30, count: 3, color: "#34d399", textColor: "#022c22", label: "30¢" },
+  { amount: 0.25, count: 4, color: "#818cf8", textColor: "#1e1b4b", label: "25¢" },
+  { amount: 0.10, count: 5, color: "#38bdf8", textColor: "#082f49", label: "10¢" },
+  { amount: 0.05, count: 10, color: "#94a3b8", textColor: "#1e293b", label: "5¢" },
+];
+let spinWheelRotation = 0; // cumulative rotation (deg), persists across modal opens
+let spinInProgress = false;
 
 const WAGER_AMOUNTS = [50, 100, 500, 1000];
 let currentWagerIndex = 1; // start at 100 coins
 const WAGER_COOLDOWN_MS = 10_000; // 10 seconds between wagers per game
 const lastWagerAtByGame = {}; // { [gameId]: timestamp }
-const MATCH_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes before treating unmatched score as a tie
+const MATCH_TIMEOUT_MS = 3 * 24 * 60 * 60 * 1000; // 3 days before treating unmatched score as a tie/refund (TODO: add admin-dashboard "request refund" option for pending matches)
 
 // Cash tournament entry amounts (real money)
 const CASH_ENTRY_AMOUNTS = [0.5, 1, 2, 5, 10, 20];
 let currentCashEntryIndex = 1; // start at $1
-let flappyWagerMode = "coin"; // "coin" or "cash"
+let flappyWagerMode = "cash"; // "coin" or "cash" (coin wagers hidden for now)
 
 const ADMIN_USERNAMES = ["zoominz9"]; // usernames allowed to see admin-only views
 
@@ -936,6 +1096,10 @@ function setCashEntryIndex(nextIndex) {
   const clamped = Math.max(0, Math.min(CASH_ENTRY_AMOUNTS.length - 1, nextIndex));
   currentCashEntryIndex = clamped;
   updateFlappyCashUI();
+  if (typeof updateGermsCashUI === "function") updateGermsCashUI();
+  if (typeof updateChickenCashUI === "function") updateChickenCashUI();
+  if (typeof updateReactionCashUI === "function") updateReactionCashUI();
+  if (typeof updateStackCashUI === "function") updateStackCashUI();
 }
 
 function increaseCashEntry() {
@@ -1073,6 +1237,125 @@ function updateWagerButtons() {
   const chickenDown = document.getElementById("chicken-bet-down");
   if (chickenUp) chickenUp.disabled = currentWagerIndex >= WAGER_AMOUNTS.length - 1;
   if (chickenDown) chickenDown.disabled = currentWagerIndex <= 0;
+
+  const germsBtn = document.getElementById("germs-wager");
+  if (germsBtn) {
+    germsBtn.textContent = "Start Tournament";
+  }
+  const germsBetLabel = document.getElementById("germs-bet-label");
+  if (germsBetLabel) {
+    germsBetLabel.textContent = `Entry fee: ${amount}`;
+  }
+  const germsPayout = document.getElementById("germs-payout");
+  if (germsPayout) {
+    germsPayout.textContent = `Win - ${payout}`;
+  }
+  const germsUp = document.getElementById("germs-bet-up");
+  const germsDown = document.getElementById("germs-bet-down");
+  if (germsUp) germsUp.disabled = currentWagerIndex >= WAGER_AMOUNTS.length - 1;
+  if (germsDown) germsDown.disabled = currentWagerIndex <= 0;
+}
+
+function updateGermsCashUI() {
+  const entry = getCurrentCashEntry();
+  const total = entry * 2;
+  const fee = total * 0.15;
+  const payout = total - fee;
+
+  const cashLabel = document.getElementById("germs-cash-label");
+  if (cashLabel) {
+    cashLabel.textContent = `Entry: $${entry.toFixed(2)}`;
+  }
+  const cashPayout = document.getElementById("germs-cash-payout");
+  if (cashPayout) {
+    cashPayout.textContent = `Win: $${payout.toFixed(2)}`;
+  }
+  const cashUp = document.getElementById("germs-cash-up");
+  const cashDown = document.getElementById("germs-cash-down");
+  if (cashUp) cashUp.disabled = currentCashEntryIndex >= CASH_ENTRY_AMOUNTS.length - 1;
+  if (cashDown) cashDown.disabled = currentCashEntryIndex <= 0;
+}
+
+function updateChickenCashUI() {
+  const entry = getCurrentCashEntry();
+  const total = entry * 2;
+  const fee = total * 0.15;
+  const payout = total - fee;
+
+  const cashLabel = document.getElementById("chicken-cash-label");
+  if (cashLabel) {
+    cashLabel.textContent = `Entry: $${entry.toFixed(2)}`;
+  }
+  const cashPayout = document.getElementById("chicken-cash-payout");
+  if (cashPayout) {
+    cashPayout.textContent = `Win: $${payout.toFixed(2)}`;
+  }
+  const cashUp = document.getElementById("chicken-cash-up");
+  const cashDown = document.getElementById("chicken-cash-down");
+  if (cashUp) cashUp.disabled = currentCashEntryIndex >= CASH_ENTRY_AMOUNTS.length - 1;
+  if (cashDown) cashDown.disabled = currentCashEntryIndex <= 0;
+}
+
+function updateReactionCashUI() {
+  const entry = getCurrentCashEntry();
+  const total = entry * 2;
+  const fee = total * 0.15;
+  const payout = total - fee;
+
+  const cashLabel = document.getElementById("reaction-cash-label");
+  if (cashLabel) {
+    cashLabel.textContent = `Entry: $${entry.toFixed(2)}`;
+  }
+  const cashPayout = document.getElementById("reaction-cash-payout");
+  if (cashPayout) {
+    cashPayout.textContent = `Win: $${payout.toFixed(2)}`;
+  }
+  const cashUp = document.getElementById("reaction-cash-up");
+  const cashDown = document.getElementById("reaction-cash-down");
+  if (cashUp) cashUp.disabled = currentCashEntryIndex >= CASH_ENTRY_AMOUNTS.length - 1;
+  if (cashDown) cashDown.disabled = currentCashEntryIndex <= 0;
+}
+
+function updateStackCashUI() {
+  const entry = getCurrentCashEntry();
+  const total = entry * 2;
+  const fee = total * 0.15;
+  const payout = total - fee;
+
+  const cashLabel = document.getElementById("stack-cash-label");
+  if (cashLabel) {
+    cashLabel.textContent = `Entry: $${entry.toFixed(2)}`;
+  }
+  const cashPayout = document.getElementById("stack-cash-payout");
+  if (cashPayout) {
+    cashPayout.textContent = `Win: $${payout.toFixed(2)}`;
+  }
+  const cashUp = document.getElementById("stack-cash-up");
+  const cashDown = document.getElementById("stack-cash-down");
+  if (cashUp) cashUp.disabled = currentCashEntryIndex >= CASH_ENTRY_AMOUNTS.length - 1;
+  if (cashDown) cashDown.disabled = currentCashEntryIndex <= 0;
+}
+
+function setGermsWagerMode(mode) {
+  germsWagerMode = mode;
+  const coinControls = document.getElementById("germs-coin-controls");
+  const cashControls = document.getElementById("germs-cash-controls");
+  const coinToggle = document.getElementById("germs-mode-coin");
+  const cashToggle = document.getElementById("germs-mode-cash");
+
+  if (mode === "cash") {
+    if (coinControls) coinControls.style.display = "none";
+    if (cashControls) cashControls.style.display = "";
+    if (coinToggle) coinToggle.classList.remove("active");
+    if (cashToggle) cashToggle.classList.add("active");
+    updateGermsCashUI();
+  } else {
+    if (coinControls) coinControls.style.display = "";
+    if (cashControls) cashControls.style.display = "none";
+    if (coinToggle) coinToggle.classList.add("active");
+    if (cashToggle) cashToggle.classList.remove("active");
+    updateWagerButtons();
+  }
 }
 
 function isAdmin() {
@@ -1090,6 +1373,8 @@ let pendingFlappyJoin = null; // { matchId, slot }
 let pendingStackJoin = null; // { matchId, slot }
 // Same pattern for Chicken Run wagers.
 let pendingChickenJoin = null; // { matchId, slot }
+// Same pattern for Avoid the Germs wagers.
+let pendingGermsJoin = null; // { matchId, slot, isCashMode, cashEntry }
 
 // --- DOM refs ---
 const authSection = document.getElementById("auth-section");
@@ -1105,13 +1390,7 @@ function render() {
 function updateBalanceDisplay() {
   if (!currentUser) return;
   
-  console.log('[UI] Updating balance display - coins:', currentUser.coin_balance, 'cash:', currentUser.cash_balance);
-  
-  // Update header coin balance by ID
-  const coinBalanceEl = document.getElementById('coin-balance');
-  if (coinBalanceEl) {
-    coinBalanceEl.textContent = `${(currentUser.coin_balance || 0).toLocaleString()} coins`;
-  }
+  console.log('[UI] Updating balance display - cash:', currentUser.cash_balance);
   
   // Update header cash balance by ID  
   const cashBalanceHeaderEl = document.getElementById('cash-balance-header');
@@ -1159,20 +1438,21 @@ function renderAuth() {
       });
     }
   } else {
-    const bonusInfo = getDailyBonusInfo(currentUser);
+    const spinInfo = getSpinInfo(currentUser);
 
     authSection.innerHTML = `
       <div class="card auth-logged-in">
         <div class="auth-user-row">
-          <div class="auth-user-meta">
+          <div class="auth-user-meta" style="display:flex;align-items:center;gap:0.5rem;">
             <div class="auth-username">@${currentUser.username}</div>
+            ${
+              isAdmin()
+                ? `<a href="admin.html" class="btn btn-secondary" style="padding:0.15rem 0.6rem;font-size:0.7rem;text-decoration:none;background:#dc2626;">🛡️ Admin Panel</a>`
+                : ""
+            }
           </div>
           <div class="balance-display">
             <div class="balance-amount">
-              <span id="coin-balance">${(currentUser.coin_balance ?? 0).toLocaleString()} coins</span>
-              <span
-                style="margin:0 0.5rem;border-left:1px solid rgba(148,163,184,0.7);height:1.25em;align-self:center;display:inline-block;"
-              ></span>
               <span id="cash-balance-header">$${Number(currentUser.cash_balance ?? 0).toFixed(2)}</span>
               <button id="header-deposit-btn" class="btn btn-secondary" style="margin-left:0.4rem;padding:0.1rem 0.55rem;font-size:0.7rem;line-height:1;">Deposit</button>
               <button id="balance-refresh-btn" class="btn btn-secondary" style="margin-left:0.35rem;padding:0.1rem 0.4rem;font-size:0.7rem;line-height:1;">↻</button>
@@ -1182,21 +1462,21 @@ function renderAuth() {
 
         <div
           class="small-text"
-          style="margin-top:0.6rem;margin-bottom:0.4rem;padding:0.4rem 0.6rem;border-radius:999px;background:linear-gradient(90deg, rgba(56,189,248,0.1), rgba(147,197,253,0.12));border:1px solid rgba(148,163,184,0.4);display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center;justify-content:space-between;"
+          style="margin-top:0.6rem;margin-bottom:0.4rem;padding:0.4rem 0.6rem;border-radius:999px;background:linear-gradient(90deg, rgba(250,204,21,0.12), rgba(251,146,60,0.12));border:1px solid rgba(250,204,21,0.4);display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center;justify-content:space-between;"
         >
           <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">
-            <span style="font-weight:600;">Daily bonus: ${DAILY_BONUS_AMOUNT.toLocaleString()} coins</span>
+            <span style="font-weight:600;">🎡 Free spin: win up to $0.50</span>
             <span style="opacity:0.9;">
-              ${bonusInfo.ready ? "Ready to claim now" : `Next bonus in ${bonusInfo.formattedRemaining}`}
+              ${spinInfo.ready ? "Ready to spin now" : `Next spin in ${spinInfo.formattedRemaining}`}
             </span>
           </div>
           <button
-            id="daily-bonus-btn"
+            id="spin-wheel-btn"
             class="btn btn-secondary"
-            ${bonusInfo.ready ? "" : "disabled"}
+            ${spinInfo.ready ? "" : "disabled"}
             style="padding:0.25rem 0.75rem;font-size:0.75rem;white-space:nowrap;"
           >
-            Claim daily bonus
+            Spin the wheel
           </button>
         </div>
         <div class="auth-actions-row">
@@ -1230,9 +1510,10 @@ function renderAuth() {
     }
 
     document.getElementById("logout-btn").addEventListener("click", handleLogout);
-    document
-      .getElementById("daily-bonus-btn")
-      .addEventListener("click", handleDailyBonusClick);
+    const spinWheelBtn = document.getElementById("spin-wheel-btn");
+    if (spinWheelBtn) {
+      spinWheelBtn.addEventListener("click", openSpinWheelModal);
+    }
 
     const balancePill = authSection.querySelector(".balance-amount");
     if (balancePill) {
@@ -1282,17 +1563,14 @@ function renderProfileScreen() {
         <strong>Email:</strong> ${currentUser.email || "(not set)"}
       </div>
       <div class="small-text" style="margin-top:0.25rem;">
-        <strong>Balance:</strong> ${(currentUser.coin_balance ?? 0).toLocaleString()} coins
-      </div>
-      <div class="small-text" style="margin-top:0.25rem;">
         <strong>Cash balance:</strong> $<span id="cash-balance">${Number(currentUser.cash_balance ?? 0).toFixed(2)}</span>
-        <button id="cash-deposit-btn" class="btn btn-secondary" style="margin-left:0.5rem;padding:0.15rem 0.5rem;font-size:0.75rem;">Deposit with Bitcoin</button>
+        <button id="cash-deposit-btn" class="btn btn-secondary" style="margin-left:0.5rem;padding:0.15rem 0.5rem;font-size:0.75rem;">Deposit</button>
       </div>
       <div class="small-text" style="margin-top:0.25rem;">
         <strong>KYC status:</strong> ${currentUser.kyc_status || "unverified"}
       </div>
       <div class="small-text" style="margin-top:0.25rem;">
-        <strong>Daily bonus status:</strong> ${getDailyBonusInfo(currentUser).ready ? "Ready now" : `Next in ${getDailyBonusInfo(currentUser).formattedRemaining}`}
+        <strong>Free spin status:</strong> ${getSpinInfo(currentUser).ready ? "Ready now" : `Next in ${getSpinInfo(currentUser).formattedRemaining}`}
       </div>
     </section>
 
@@ -1389,23 +1667,7 @@ function renderProfileScreen() {
   const cashDepositBtn = document.getElementById("cash-deposit-btn");
   if (cashDepositBtn) {
     cashDepositBtn.addEventListener("click", () => {
-      const statusEl = document.getElementById("cash-deposit-status");
-      if (statusEl) statusEl.textContent = "Creating Bitcoin checkout...";
-      cashDepositBtn.disabled = true;
-      startBitcoinDeposit()
-        .then((ok) => {
-          if (!statusEl) return;
-          statusEl.textContent = ok
-            ? "Invoice created. Check your Bitcoin wallet to complete the deposit."
-            : "Could not create Bitcoin checkout. Please try again.";
-        })
-        .catch((err) => {
-          console.error("Failed to start Bitcoin deposit", err);
-          if (statusEl) statusEl.textContent = "Failed to start Bitcoin deposit. Please try again.";
-        })
-        .finally(() => {
-          cashDepositBtn.disabled = false;
-        });
+      openDepositModal();
     });
   }
 
@@ -1468,7 +1730,7 @@ async function startBitcoinDeposit(amountCash = 5) {
 
   try {
     const res = await fetch(
-      "https://wokarixqtacrqkupudom.functions.supabase.co/create-btc-checkout",
+      "https://chyhilxjcjjzeragkkoq.functions.supabase.co/create-btc-checkout",
       {
         method: "POST",
         headers: {
@@ -1513,7 +1775,7 @@ async function startBitcoinWithdrawal(amountCash, btcAddress) {
 
   try {
     const res = await fetch(
-      "https://wokarixqtacrqkupudom.functions.supabase.co/create-btc-withdrawal",
+      "https://chyhilxjcjjzeragkkoq.functions.supabase.co/create-btc-withdrawal",
       {
         method: "POST",
         headers: {
@@ -1641,6 +1903,13 @@ const gameCards = [
     mode: "Live multiplayer",
     comingSoon: false,
   },
+  {
+    id: "avoid-germs",
+    title: "Avoid the Germs",
+    description: "Dodge chasing germs and collect rings to beat your high score.",
+    mode: "1v1 skill",
+    comingSoon: false,
+  },
 ];
 
 function renderHub() {
@@ -1698,25 +1967,6 @@ function renderHub() {
       }</div>
     </section>
 
-    ${
-      currentUser && isAdmin()
-        ? `
-    <section class="card" style="margin-top:1rem;" id="operator-card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
-        <h3 class="section-title" style="margin-bottom:0;">Operator Dashboard</h3>
-        <div style="display:flex;align-items:center;gap:0.5rem;">
-          <span class="badge">ADMIN ONLY</span>
-          <a href="/arcade-hub/admin.html" class="btn btn-secondary" style="padding:0.25rem 0.7rem;font-size:0.75rem;text-decoration:none;background:#dc2626;">🛡️ Anti-Cheat</a>
-          <button id="operator-refresh" class="btn btn-secondary" style="padding:0.25rem 0.7rem;font-size:0.75rem;">Refresh</button>
-        </div>
-      </div>
-      <div id="operator-content" class="small-text" style="margin-top:0.35rem; max-height: 220px; overflow-y:auto;">
-        Loading operator metrics...
-      </div>
-    </section>
-        `
-        : ""
-    }
   `;
 
   document.querySelectorAll("[data-game-id]").forEach((btn) => {
@@ -1773,248 +2023,6 @@ function renderHub() {
       });
     }
 
-    if (isAdmin()) {
-      loadAndRenderOperatorDashboard().catch((err) => console.error(err));
-      const opRefresh = document.getElementById("operator-refresh");
-      if (opRefresh) {
-        opRefresh.addEventListener("click", () => {
-          loadAndRenderOperatorDashboard().catch((err) => console.error(err));
-        });
-      }
-    }
-  }
-}
-
-async function loadAndRenderOperatorDashboard() {
-  const container = document.getElementById("operator-content");
-  if (!container || !supabaseClient || !currentUser || !isAdmin()) return;
-
-  container.textContent = "Loading operator metrics...";
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  try {
-    const now = new Date();
-
-    const { data, error } = await supabaseClient
-      .from("fees_ledger")
-      .select(
-        "id, match_id, game_id, total_entry, fee_amount, payout_amount, winner_id, created_at, currency"
-      )
-      .order("created_at", { ascending: false })
-      .limit(100);
-
-    if (error) {
-      console.error(error);
-      container.textContent = "Failed to load operator metrics.";
-      return;
-    }
-
-    if (!data || data.length === 0) {
-      container.textContent = "No settled tournaments yet.";
-      return;
-    }
-
-    let totalFeesAllTimeCoin = 0;
-    let todayFeesCoin = 0;
-    let lastHourFeesCoin = 0;
-
-    let totalFeesAllTimeCash = 0;
-    let todayFeesCash = 0;
-    let lastHourFeesCash = 0;
-    const feesByGameMap = new Map(); // game_id -> { fees, count }
-
-    for (const row of data) {
-      const fee = row.fee_amount || 0;
-      const isCash = row.currency === "CASH";
-
-      if (isCash) {
-        totalFeesAllTimeCash += fee;
-      } else {
-        totalFeesAllTimeCoin += fee;
-      }
-
-      const createdAt = row.created_at ? new Date(row.created_at) : null;
-      if (createdAt) {
-        if (createdAt >= today) {
-          if (isCash) todayFeesCash += fee; else todayFeesCoin += fee;
-        }
-        const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-        if (createdAt >= oneHourAgo) {
-          if (isCash) lastHourFeesCash += fee; else lastHourFeesCoin += fee;
-        }
-      }
-
-      const key = (row.game_id || "unknown") + "::" + (row.currency || "COIN");
-      const current = feesByGameMap.get(key) || { fees: 0, count: 0 };
-      current.fees += fee;
-      current.count += 1;
-      feesByGameMap.set(key, current);
-    }
-
-    const settledCount = data.length;
-
-    // Build fees by game lines
-    const feesByGameLines = Array.from(feesByGameMap.entries())
-      .map(([key, info]) => {
-        const [gameId, currency] = key.split("::");
-        const game = gameCards.find((g) => g.id === gameId);
-        const title = game ? game.title : gameId;
-        const isCash = currency === "CASH";
-        const label = isCash ? "(cash)" : "(coins)";
-        const feeDisplay = isCash ? `$${info.fees.toFixed(2)}` : info.fees;
-        return `<div>${title} ${label}: <strong>${feeDisplay}</strong> fees across ${info.count} settlements</div>`;
-      })
-      .join("");
-
-    // Show the latest 40 settlements in the Matches table
-    const recent = data.slice(0, 40);
-    const matchIds = recent.map((r) => r.match_id).filter(Boolean);
-
-    // Load matches to determine loser for each settlement
-    let matchesById = {};
-    if (matchIds.length > 0) {
-      try {
-        const { data: matches, error: matchesError } = await supabaseClient
-          .from("matches")
-          .select("id, player1_id, player2_id")
-          .in("id", matchIds);
-
-        if (!matchesError && matches) {
-          matchesById = Object.fromEntries(matches.map((m) => [m.id, m]));
-        }
-      } catch (e) {
-        console.error("Failed to load matches for operator dashboard", e);
-      }
-    }
-
-    // Collect winner and loser ids for profile lookup
-    const userIdSet = new Set();
-    for (const r of recent) {
-      if (r.winner_id) userIdSet.add(r.winner_id);
-      const match = r.match_id ? matchesById[r.match_id] : null;
-      if (match && r.winner_id) {
-        const loserId =
-          r.winner_id === match.player1_id ? match.player2_id : match.player1_id;
-        if (loserId) userIdSet.add(loserId);
-      }
-    }
-
-    let userNamesById = {};
-    const userIds = Array.from(userIdSet);
-    if (userIds.length > 0) {
-      try {
-        const { data: profiles, error: profilesError } = await supabaseClient
-          .from("profiles")
-          .select("id, username")
-          .in("id", userIds);
-
-        if (!profilesError && profiles) {
-          userNamesById = Object.fromEntries(
-            profiles.map((p) => [p.id, p.username || "Unknown"])
-          );
-        }
-      } catch (e) {
-        console.error("Failed to load usernames for operator dashboard", e);
-      }
-    }
-
-    const settlementsRows = recent
-      .map((r) => {
-        const game = gameCards.find((g) => g.id === r.game_id);
-        const title = game ? game.title : r.game_id;
-        const match = r.match_id ? matchesById[r.match_id] : null;
-        const winnerName = r.winner_id
-          ? userNamesById[r.winner_id] || "Unknown"
-          : "Tie";
-        let loserName = "-";
-        if (match && r.winner_id) {
-          const loserId =
-            r.winner_id === match.player1_id ? match.player2_id : match.player1_id;
-          loserName = loserId ? userNamesById[loserId] || "Unknown" : "-";
-        }
-        const createdAt = r.created_at ? new Date(r.created_at) : null;
-        const timeLabel = createdAt
-          ? createdAt.toLocaleString(undefined, {
-              month: "2-digit",
-              day: "2-digit",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : "";
-
-        const isCashRow = r.currency === "CASH";
-        const modeLabel = isCashRow ? "cash" : "coins";
-        const entryDisplay = isCashRow ? `$${(r.total_entry ?? 0).toFixed(2)}` : (r.total_entry ?? "");
-        const feeDisplay = isCashRow ? `$${(r.fee_amount ?? 0).toFixed(2)}` : (r.fee_amount ?? "");
-        const payoutDisplay = isCashRow ? `$${(r.payout_amount ?? 0).toFixed(2)}` : (r.payout_amount ?? "");
-        return `
-        <tr>
-          <td style="text-align:left;padding:0.15rem 0.3rem;white-space:nowrap;">${title}</td>
-          <td style="text-align:right;padding:0.15rem 0.3rem;white-space:nowrap;">${entryDisplay}</td>
-          <td style="text-align:left;padding:0.15rem 0.3rem;white-space:nowrap;">${winnerName}</td>
-          <td style="text-align:left;padding:0.15rem 0.3rem;white-space:nowrap;">${loserName}</td>
-          <td style="text-align:right;padding:0.15rem 0.3rem;white-space:nowrap;">${feeDisplay}</td>
-          <td style="text-align:right;padding:0.15rem 0.3rem;white-space:nowrap;">${payoutDisplay}</td>
-          <td style="text-align:left;padding:0.15rem 0.3rem;white-space:nowrap;">${modeLabel}</td>
-          <td style="text-align:left;padding:0.15rem 0.3rem;white-space:nowrap;">${timeLabel}</td>
-        </tr>`;
-      })
-      .join("");
-
-    container.innerHTML = `
-      <div style="margin-bottom:0.5rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.4rem;">
-        <div>
-          <div style="font-weight:600;">Coin fees</div>
-          <div>Total (all time): <strong>${totalFeesAllTimeCoin}</strong></div>
-          <div>Today: <strong>${todayFeesCoin}</strong></div>
-          <div>Last hour: <strong>${lastHourFeesCoin}</strong></div>
-        </div>
-        <div>
-          <div style="font-weight:600;">Cash fees</div>
-          <div>Total (all time): <strong>$${totalFeesAllTimeCash.toFixed(2)}</strong></div>
-          <div>Today: <strong>$${todayFeesCash.toFixed(2)}</strong></div>
-          <div>Last hour: <strong>$${lastHourFeesCash.toFixed(2)}</strong></div>
-        </div>
-        <div>
-          <div style="font-weight:600;">Settlements</div>
-          <div>Settled tournaments: <strong>${settledCount}</strong></div>
-        </div>
-      </div>
-
-      <div style="margin-top:0.5rem;margin-bottom:0.5rem;">
-        <div style="font-weight:600;margin-bottom:0.25rem;">Fees by game</div>
-        ${feesByGameLines || "<div>No fee data by game yet.</div>"}
-      </div>
-
-      <div style="margin-top:0.5rem;">
-        <div style="font-weight:600;margin-bottom:0.25rem;">Matches</div>
-        <div class="scroll-on-hover" style="max-height:140px;overflow-y:auto;">
-          <table class="small-text" style="width:100%;border-collapse:collapse;min-width:520px;">
-            <thead>
-              <tr>
-                <th style="text-align:left;padding:0.15rem 0.3rem;">Game</th>
-                <th style="text-align:right;padding:0.15rem 0.3rem;">Entry</th>
-                <th style="text-align:left;padding:0.15rem 0.3rem;">Winner</th>
-                <th style="text-align:left;padding:0.15rem 0.3rem;">Loser</th>
-                <th style="text-align:right;padding:0.15rem 0.3rem;">Fee</th>
-                <th style="text-align:right;padding:0.15rem 0.3rem;">Payout</th>
-                <th style="text-align:left;padding:0.15rem 0.3rem;">Mode</th>
-                <th style="text-align:left;padding:0.15rem 0.3rem;">Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${settlementsRows}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `;
-  } catch (e) {
-    console.error(e);
-    container.textContent = "Failed to load operator metrics.";
   }
 }
 
@@ -2035,6 +2043,9 @@ let chickenAnimId = null;
 let speedDashState = null;
 let speedDashAnimId = null;
 let speedDashSubscription = null;
+
+let germsState = null;
+let germsWagerMode = "cash"; // "coin" or "cash" (coin wagers hidden for now)
 
 function renderGameScreen() {
   const game = gameCards.find((g) => g.id === currentGameId);
@@ -2107,9 +2118,325 @@ function renderGameScreen() {
     mountChickenRun();
   } else if (currentGameId === "speed-dash") {
     mountSpeedDash();
+  } else if (currentGameId === "avoid-germs") {
+    mountAvoidGerms();
   } else {
     const root = document.getElementById("game-root");
     root.textContent = "Prototype coming soon.";
+  }
+}
+
+function mountAvoidGerms() {
+  const root = document.getElementById("game-root");
+  root.innerHTML = `
+    <div class="germs-layout">
+      <div class="germs-top">
+        <div class="small-text">Score</div>
+        <div class="chicken-score" id="germs-score">0</div>
+
+        <div class="mode-toggle" id="germs-mode-toggle" style="display:none;gap:0.25rem;margin-bottom:0.35rem;">
+          <button class="btn btn-secondary" id="germs-mode-coin" style="padding:0.2rem 0.6rem;font-size:0.75rem;">Coins</button>
+          <button class="btn btn-secondary active" id="germs-mode-cash" style="padding:0.2rem 0.6rem;font-size:0.75rem;">Cash</button>
+        </div>
+
+        <button class="btn btn-secondary" id="germs-wager">Start Tournament</button>
+
+        <div id="germs-coin-controls" style="display:none;">
+          <div class="bet-controls">
+            <button class="bet-btn" id="germs-bet-down">-</button>
+            <span class="bet-label" id="germs-bet-label">Entry fee: 100</span>
+            <button class="bet-btn" id="germs-bet-up">+</button>
+          </div>
+          <div class="small-text" id="germs-payout" style="margin-top:0.15rem; min-height:1em;"></div>
+        </div>
+
+        <div id="germs-cash-controls" style="display:none;">
+          <div class="bet-controls">
+            <button class="bet-btn" id="germs-cash-down">-</button>
+            <span class="bet-label" id="germs-cash-label">Entry: $1.00</span>
+            <button class="bet-btn" id="germs-cash-up">+</button>
+          </div>
+          <div class="small-text" id="germs-cash-payout" style="margin-top:0.15rem; min-height:1em;">Win: $1.70</div>
+        </div>
+      </div>
+
+      <div class="card" data-leaderboard-card="true" style="margin-top:0.5rem; margin-bottom:0.75rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
+          <h3 class="section-title" style="margin-bottom:0;">Top 5 - Avoid the Germs</h3>
+          <button id="germs-leaderboard-refresh" class="btn btn-secondary" style="padding:0.2rem 0.6rem;font-size:0.7rem;">Refresh</button>
+        </div>
+        <div id="germs-leaderboard" class="small-text" style="margin-top:0.4rem; max-height:180px; overflow-y:auto;"></div>
+      </div>
+
+      <div id="avoid-germs-container" class="avoid-germs-container"></div>
+      <div class="small-text" style="margin-top:0.5rem;">Click Start Tournament to enter a wager, then click inside the game to dodge germs and collect rings.</div>
+      <div class="small-text" id="germs-wager-result" style="margin-top:0.25rem; min-height:1em;"></div>
+      <div id="germs-provably-fair" style="margin-top:0.5rem;display:none;"></div>
+    </div>
+  `;
+
+  if (window.AvoidGerms) {
+    window.AvoidGerms.mount("avoid-germs-container", {
+      onScoreChange: (score) => {
+        if (germsState) germsState.score = score;
+        const scoreEl = document.getElementById("germs-score");
+        if (scoreEl) scoreEl.textContent = score;
+      },
+      onGameOver: (score) => {
+        if (germsState) germsState.score = score;
+        handleGermsGameOver(score);
+      },
+    });
+  } else {
+    const container = document.getElementById("avoid-germs-container");
+    if (container) container.textContent = "Failed to load game engine. Please refresh and try again.";
+  }
+
+  const wagerBtn = document.getElementById("germs-wager");
+  if (wagerBtn) {
+    wagerBtn.addEventListener("click", handleGermsWagerClick);
+  }
+
+  const coinToggle = document.getElementById("germs-mode-coin");
+  const cashToggle = document.getElementById("germs-mode-cash");
+  if (coinToggle) coinToggle.addEventListener("click", () => setGermsWagerMode("coin"));
+  if (cashToggle) cashToggle.addEventListener("click", () => setGermsWagerMode("cash"));
+
+  const betDown = document.getElementById("germs-bet-down");
+  const betUp = document.getElementById("germs-bet-up");
+  if (betDown) betDown.addEventListener("click", () => decreaseWagerAmount());
+  if (betUp) betUp.addEventListener("click", () => increaseWagerAmount());
+
+  const cashDown = document.getElementById("germs-cash-down");
+  const cashUp = document.getElementById("germs-cash-up");
+  if (cashDown) cashDown.addEventListener("click", () => decreaseCashEntry());
+  if (cashUp) cashUp.addEventListener("click", () => increaseCashEntry());
+
+  setGermsWagerMode(germsWagerMode);
+  updateWagerButtons();
+  updateGermsCashUI();
+
+  loadLeaderboardForGame("avoid-germs", "germs-leaderboard");
+  const lbRefresh = document.getElementById("germs-leaderboard-refresh");
+  if (lbRefresh) {
+    lbRefresh.addEventListener("click", () => {
+      loadLeaderboardForGame("avoid-germs", "germs-leaderboard");
+    });
+  }
+
+  // Re-attach pending wager UI state if a render() happened mid-wager
+  if (germsState && germsState.inWager) {
+    if (wagerBtn) wagerBtn.style.display = "none";
+    const modeToggle = document.getElementById("germs-mode-toggle");
+    if (modeToggle) modeToggle.style.display = "none";
+    if (germsState.serverSeedHash) {
+      const pfEl = document.getElementById("germs-provably-fair");
+      if (pfEl) {
+        pfEl.style.display = "block";
+        pfEl.innerHTML = renderProvablyFairBadge(germsState.serverSeedHash, true);
+        pfEl.onclick = () => window.showProvablyFairInfo(germsState.serverSeedHash, germsState.serverSeed, germsState.matchId);
+      }
+    }
+  }
+}
+
+async function handleGermsWagerClick() {
+  if (!supabaseClient || !currentUser) {
+    openAuthModal("login");
+    return;
+  }
+
+  const canPlay = await checkBanBeforeGame('avoid_germs');
+  if (!canPlay) return;
+
+  const btn = document.getElementById("germs-wager");
+  if (!btn) return;
+  const modeToggle = document.getElementById("germs-mode-toggle");
+
+  const isCashMode = germsWagerMode === "cash";
+  const wagerAmount = isCashMode ? null : getCurrentWagerAmount();
+  const cashEntry = isCashMode ? getCurrentCashEntry() : null;
+
+  const now = Date.now();
+  const last = lastWagerAtByGame["avoid-germs"] || 0;
+  if (now - last < WAGER_COOLDOWN_MS) {
+    const remaining = Math.ceil((WAGER_COOLDOWN_MS - (now - last)) / 1000);
+    alert(`Please wait ${remaining}s before starting another Avoid the Germs tournament.`);
+    return;
+  }
+
+  if (germsState && germsState.inWager) {
+    btn.style.display = "none";
+    alert("You already have an active tournament run. Finish it before starting another.");
+    return;
+  }
+
+  if (isCashMode) {
+    if ((currentUser.cash_balance ?? 0) < cashEntry) {
+      alert(`Not enough cash for a $${cashEntry.toFixed(2)} entry. Please deposit more.`);
+      return;
+    }
+  } else {
+    if ((currentUser.coin_balance ?? 0) < wagerAmount) {
+      alert(`Not enough coins for a ${wagerAmount}-coin wager.`);
+      return;
+    }
+  }
+
+  btn.disabled = true;
+  btn.style.display = "none";
+  if (modeToggle) {
+    modeToggle.style.display = "none";
+  }
+
+  try {
+    let match, slot;
+
+    if (isCashMode) {
+      match = await createCashMatchForGame("avoid-germs", cashEntry);
+      if (!match) {
+        throw new Error("Could not create cash match.");
+      }
+      slot = match.player2_id === currentUser.id ? "player2" : "player1";
+    } else {
+      const result = await findOrCreateGermsMatch(wagerAmount);
+      match = result.match;
+      slot = result.slot;
+      if (!match || !slot) {
+        throw new Error("Could not start or join a wager match.");
+      }
+    }
+
+    pendingGermsJoin = { matchId: match.id, slot, isCashMode, cashEntry };
+    lastWagerAtByGame["avoid-germs"] = now;
+
+    // Set state BEFORE triggering any balance refresh below, since
+    // adjustCurrentUserCoins/loadCurrentUser trigger a full re-render that
+    // remounts the game screen. mountAvoidGerms() checks germsState.inWager
+    // to keep the wager button/toggle hidden on the freshly rendered DOM.
+    germsState = germsState || {};
+    germsState.inWager = true;
+    germsState.matchId = match.id;
+    germsState.playerSlot = slot;
+    germsState.opponentName = null;
+    germsState.gameOverReported = false;
+    germsState.score = 0;
+    germsState.wagerAmount = isCashMode ? null : wagerAmount;
+    germsState.cashEntry = isCashMode ? cashEntry : null;
+    germsState.isCashMode = isCashMode;
+    germsState.provablyFairId = match.provablyFairId || null;
+    germsState.serverSeedHash = match.serverSeedHash || null;
+    germsState.serverSeed = match.serverSeed || null;
+    germsState.antiCheatSession = AntiCheat.createSession('avoid_germs', match.id, currentUser.id);
+
+    if (isCashMode) {
+      await loadCurrentUser();
+    } else {
+      await adjustCurrentUserCoins(-wagerAmount);
+    }
+
+    try {
+      const oppId = slot === "player1" ? match.player2_id : match.player1_id;
+      if (oppId) {
+        const { data: oppProfile, error: oppError } = await supabaseClient
+          .from("profiles")
+          .select("username")
+          .eq("id", oppId)
+          .maybeSingle();
+        if (!oppError && oppProfile) {
+          germsState.opponentName = oppProfile.username || "Unknown player";
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load opponent for Germs wager banner", e);
+    }
+
+    // Force a fresh run for this wager (skips MainMenu, resets score to 0)
+    if (window.AvoidGerms) {
+      window.AvoidGerms.restart();
+    }
+
+    const resultEl = document.getElementById("germs-wager-result");
+    if (resultEl) {
+      const modeLabel = isCashMode ? `$${cashEntry.toFixed(2)} cash` : `${wagerAmount}-coin`;
+      resultEl.textContent =
+        slot === "player2"
+          ? `Match found (${modeLabel})! Finish your run to record your score.`
+          : `Match created (${modeLabel}). Finish your run to record your score.`;
+    }
+
+    const pfEl = document.getElementById("germs-provably-fair");
+    if (pfEl && germsState.serverSeedHash) {
+      pfEl.style.display = "block";
+      pfEl.innerHTML = renderProvablyFairBadge(germsState.serverSeedHash, true);
+      pfEl.onclick = () => window.showProvablyFairInfo(germsState.serverSeedHash, null, germsState.matchId);
+    }
+  } catch (err) {
+    console.error(err);
+    alert(err.message || "Failed to start wager match.");
+  } finally {
+    if (btn && !(germsState && germsState.inWager)) {
+      btn.disabled = false;
+    }
+  }
+}
+
+async function handleGermsGameOver(score) {
+  if (
+    !supabaseClient ||
+    !currentUser ||
+    !germsState?.inWager ||
+    !germsState.matchId ||
+    !germsState.playerSlot ||
+    germsState.gameOverReported
+  ) {
+    return;
+  }
+
+  germsState.gameOverReported = true;
+  germsState.score = score;
+
+  const wasCashMode = germsState.isCashMode;
+  const cashEntry = germsState.cashEntry;
+
+  try {
+    await submitMatchScore(germsState.matchId, germsState.playerSlot, score);
+    const resultEl = document.getElementById("germs-wager-result");
+    if (resultEl) {
+      const modeLabel = wasCashMode && cashEntry ? `$${cashEntry.toFixed(2)} cash` : "coin";
+      resultEl.textContent = `${modeLabel} run finished. Score: ${score}. Awaiting other player...`;
+    }
+
+    if (germsState.provablyFairId) {
+      await ProvablyFair.revealGame(germsState.provablyFairId);
+      const pfEl = document.getElementById("germs-provably-fair");
+      if (pfEl && germsState.serverSeedHash && germsState.serverSeed) {
+        pfEl.innerHTML = renderProvablyFairBadge(germsState.serverSeedHash, true);
+        pfEl.onclick = () => window.showProvablyFairInfo(germsState.serverSeedHash, germsState.serverSeed, germsState.matchId);
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    alert(err.message || "Failed to submit wager score.");
+  } finally {
+    germsState.inWager = false;
+    germsState.matchId = null;
+    germsState.playerSlot = null;
+    germsState.isCashMode = false;
+    germsState.cashEntry = null;
+
+    pendingGermsJoin = null;
+
+    const btn = document.getElementById("germs-wager");
+    if (btn) {
+      btn.disabled = false;
+      btn.style.display = "";
+    }
+    const modeToggle = document.getElementById("germs-mode-toggle");
+    if (modeToggle) {
+      modeToggle.style.display = "";
+    }
+    setGermsWagerMode(germsWagerMode);
   }
 }
 
@@ -2147,6 +2474,11 @@ function stopAllGames() {
     speedDashSubscription = null;
   }
   speedDashState = null;
+
+  if (window.AvoidGerms) {
+    window.AvoidGerms.destroy();
+  }
+  germsState = null;
 }
 
 // --- Reaction Duel (single-player prototype) ---
@@ -2168,11 +2500,23 @@ function mountReactionDuel() {
       </div>
       <div class="reaction-wager-panel">
         <button class="btn btn-secondary" id="reaction-wager">Start Tournament</button>
-        <div class="bet-controls">
-          <button class="bet-btn" id="reaction-bet-down">-</button>
-          <span class="bet-label" id="reaction-bet-label">Entry fee: 100</span>
-          <button class="bet-btn" id="reaction-bet-up">+</button>
+        <!-- Coin controls hidden for now -->
+        <div id="reaction-coin-controls" style="display:none;">
+          <div class="bet-controls">
+            <button class="bet-btn" id="reaction-bet-down">-</button>
+            <span class="bet-label" id="reaction-bet-label">Entry fee: 100</span>
+            <button class="bet-btn" id="reaction-bet-up">+</button>
+          </div>
           <div class="small-text" id="reaction-payout" style="margin-top:0.15rem; min-height:1em;"></div>
+        </div>
+        <!-- Cash entry controls -->
+        <div id="reaction-cash-controls">
+          <div class="bet-controls">
+            <button class="bet-btn" id="reaction-cash-down">-</button>
+            <span class="bet-label" id="reaction-cash-label">Entry: $1.00</span>
+            <button class="bet-btn" id="reaction-cash-up">+</button>
+          </div>
+          <div class="small-text" id="reaction-cash-payout" style="margin-top:0.15rem; min-height:1em;">Win: $1.70</div>
         </div>
         <div class="small-text" id="reaction-wager-result" style="margin-top:0.25rem; min-height:1em;"></div>
         <div id="reaction-provably-fair" style="margin-top:0.5rem;display:none;"></div>
@@ -2200,6 +2544,8 @@ function mountReactionDuel() {
     matchId: null,
     playerSlot: null,
     wagerAmount: null,
+    isCashMode: false,
+    cashEntry: null,
     gameOverReported: false,
     // Anti-cheat
     antiCheatSession: null,
@@ -2227,8 +2573,14 @@ function mountReactionDuel() {
     });
   }
 
+  const reactionCashDown = document.getElementById("reaction-cash-down");
+  const reactionCashUp = document.getElementById("reaction-cash-up");
+  if (reactionCashDown) reactionCashDown.addEventListener("click", () => decreaseCashEntry());
+  if (reactionCashUp) reactionCashUp.addEventListener("click", () => increaseCashEntry());
+
   // Ensure labels reflect the current wager amount
   updateWagerButtons();
+  updateReactionCashUI();
 
   // Load leaderboard for this game
   loadLeaderboardForGame("reaction-duel", "reaction-leaderboard");
@@ -2341,7 +2693,7 @@ async function handleReactionWagerClick() {
   const btn = document.getElementById("reaction-wager");
   if (!btn) return;
 
-  const wagerAmount = getCurrentWagerAmount();
+  const cashEntry = getCurrentCashEntry();
   const now = Date.now();
   const last = lastWagerAtByGame["reaction-duel"] || 0;
   if (now - last < WAGER_COOLDOWN_MS) {
@@ -2355,26 +2707,29 @@ async function handleReactionWagerClick() {
     return;
   }
 
-  if ((currentUser.coin_balance ?? 0) < wagerAmount) {
-    alert(`Not enough coins for a ${wagerAmount}-coin wager.`);
+  if ((currentUser.cash_balance ?? 0) < cashEntry) {
+    alert(`Not enough cash for a $${cashEntry.toFixed(2)} entry. Please deposit more.`);
     return;
   }
 
   btn.disabled = true;
 
   try {
-    const { match, slot } = await findOrCreateReactionMatch(wagerAmount);
-    if (!match || !slot) {
-      throw new Error("Could not start or join a Reaction wager match.");
+    const match = await createCashMatchForGame("reaction-duel", cashEntry);
+    if (!match) {
+      throw new Error("Could not create cash match.");
     }
+    const slot = match.player2_id === currentUser.id ? "player2" : "player1";
 
-    await adjustCurrentUserCoins(-wagerAmount);
+    await loadCurrentUser();
     lastWagerAtByGame["reaction-duel"] = now;
 
     reactionState.inWager = true;
     reactionState.matchId = match.id;
     reactionState.playerSlot = slot;
-    reactionState.wagerAmount = wagerAmount;
+    reactionState.wagerAmount = null;
+    reactionState.isCashMode = true;
+    reactionState.cashEntry = cashEntry;
     reactionState.gameOverReported = false;
     // Provably Fair data
     reactionState.provablyFairId = match.provablyFairId || null;
@@ -2386,10 +2741,11 @@ async function handleReactionWagerClick() {
 
     const statusEl = document.getElementById("reaction-status");
     if (statusEl) {
+      const modeLabel = `$${cashEntry.toFixed(2)} cash`;
       statusEl.textContent =
         slot === "player2"
-          ? `Joined a ${wagerAmount}-coin wager. Start a round and click when it turns green!`
-          : `Created a ${wagerAmount}-coin wager. Start a round and click when it turns green!`;
+          ? `Joined a ${modeLabel} wager. Start a round and click when it turns green!`
+          : `Created a ${modeLabel} wager. Start a round and click when it turns green!`;
     }
 
     const resultEl = document.getElementById("reaction-wager-result");
@@ -2461,10 +2817,10 @@ function mountFlappyRace() {
         <div class="small-text">Score</div>
         <div class="flappy-score" id="flappy-score">0</div>
 
-        <!-- Mode toggle: Coins / Cash -->
-        <div class="mode-toggle" style="display:flex;gap:0.25rem;margin-bottom:0.35rem;">
-          <button class="btn btn-secondary active" id="flappy-mode-coin" style="padding:0.2rem 0.6rem;font-size:0.75rem;">Coins</button>
-          <button class="btn btn-secondary" id="flappy-mode-cash" style="padding:0.2rem 0.6rem;font-size:0.75rem;">Cash</button>
+        <!-- Mode toggle: Coins / Cash (coin option hidden for now) -->
+        <div class="mode-toggle" id="flappy-mode-toggle" style="display:none;gap:0.25rem;margin-bottom:0.35rem;">
+          <button class="btn btn-secondary" id="flappy-mode-coin" style="padding:0.2rem 0.6rem;font-size:0.75rem;">Coins</button>
+          <button class="btn btn-secondary active" id="flappy-mode-cash" style="padding:0.2rem 0.6rem;font-size:0.75rem;">Cash</button>
         </div>
 
         <!-- Player count selector -->
@@ -3254,12 +3610,24 @@ function mountStackDuel() {
         <div class="small-text">Height</div>
         <div class="stack-score" id="stack-score">0</div>
         <button class="btn btn-secondary" id="stack-wager">Start Tournament</button>
-        <div class="bet-controls">
-          <button class="bet-btn" id="stack-bet-down">-</button>
-          <span class="bet-label" id="stack-bet-label">Entry fee: 100</span>
-          <button class="bet-btn" id="stack-bet-up">+</button>
+        <!-- Coin controls hidden for now -->
+        <div id="stack-coin-controls" style="display:none;">
+          <div class="bet-controls">
+            <button class="bet-btn" id="stack-bet-down">-</button>
+            <span class="bet-label" id="stack-bet-label">Entry fee: 100</span>
+            <button class="bet-btn" id="stack-bet-up">+</button>
+          </div>
+          <div class="small-text" id="stack-payout" style="margin-top:0.15rem; min-height:1em;"></div>
         </div>
-        <div class="small-text" id="stack-payout" style="margin-top:0.15rem; min-height:1em;"></div>
+        <!-- Cash entry controls -->
+        <div id="stack-cash-controls">
+          <div class="bet-controls">
+            <button class="bet-btn" id="stack-cash-down">-</button>
+            <span class="bet-label" id="stack-cash-label">Entry: $1.00</span>
+            <button class="bet-btn" id="stack-cash-up">+</button>
+          </div>
+          <div class="small-text" id="stack-cash-payout" style="margin-top:0.15rem; min-height:1em;">Win: $1.70</div>
+        </div>
         <button id="stack-restart-hidden" style="display:none;"></button>
       </div>
       <div class="card" data-leaderboard-card="true" style="margin-top:0.5rem; margin-bottom:0.75rem;">
@@ -3304,6 +3672,8 @@ function mountStackDuel() {
     opponentName: null,
     gameOverReported: false,
     wagerAmount: null,
+    isCashMode: false,
+    cashEntry: null,
     // Anti-cheat
     antiCheatSession: null,
   };
@@ -3500,6 +3870,8 @@ function mountStackDuel() {
     stackState.matchId = pendingStackJoin.matchId;
     stackState.playerSlot = pendingStackJoin.slot;
     stackState.gameOverReported = false;
+    stackState.isCashMode = pendingStackJoin.isCashMode || false;
+    stackState.cashEntry = pendingStackJoin.cashEntry || null;
     pendingStackJoin = null;
     const resultEl = document.getElementById("stack-wager-result");
     if (resultEl) {
@@ -3532,6 +3904,11 @@ function mountStackDuel() {
     });
   }
 
+  const stackCashDown = document.getElementById("stack-cash-down");
+  const stackCashUp = document.getElementById("stack-cash-up");
+  if (stackCashDown) stackCashDown.addEventListener("click", () => decreaseCashEntry());
+  if (stackCashUp) stackCashUp.addEventListener("click", () => increaseCashEntry());
+
   // Load leaderboard for this game
   loadLeaderboardForGame("stack-duel", "stack-leaderboard");
 
@@ -3544,6 +3921,7 @@ function mountStackDuel() {
 
   // Ensure wager labels and payout reflect the current amount on mount
   updateWagerButtons();
+  updateStackCashUI();
 }
 
 async function handleStackWagerClick() {
@@ -3560,7 +3938,7 @@ async function handleStackWagerClick() {
   if (!btn) return;
   const toggleBtn = document.getElementById("stack-wager-toggle");
 
-  const wagerAmount = getCurrentWagerAmount();
+  const cashEntry = getCurrentCashEntry();
 
   const now = Date.now();
   const last = lastWagerAtByGame["stack-duel"] || 0;
@@ -3576,8 +3954,8 @@ async function handleStackWagerClick() {
     return;
   }
 
-  if ((currentUser.coin_balance ?? 0) < wagerAmount) {
-    alert(`Not enough coins for a ${wagerAmount}-coin wager.`);
+  if ((currentUser.cash_balance ?? 0) < cashEntry) {
+    alert(`Not enough cash for a $${cashEntry.toFixed(2)} entry. Please deposit more.`);
     return;
   }
 
@@ -3588,14 +3966,15 @@ async function handleStackWagerClick() {
   }
 
   try {
-    const { match, slot } = await findOrCreateStackMatch(wagerAmount);
-    if (!match || !slot) {
-      throw new Error("Could not start or join a wager match.");
+    const match = await createCashMatchForGame("stack-duel", cashEntry);
+    if (!match) {
+      throw new Error("Could not create cash match.");
     }
+    const slot = match.player2_id === currentUser.id ? "player2" : "player1";
 
-    pendingStackJoin = { matchId: match.id, slot };
+    pendingStackJoin = { matchId: match.id, slot, isCashMode: true, cashEntry };
 
-    await adjustCurrentUserCoins(-wagerAmount);
+    await loadCurrentUser();
 
     // Record cooldown timestamp for this game
     lastWagerAtByGame["stack-duel"] = now;
@@ -3606,6 +3985,8 @@ async function handleStackWagerClick() {
       stackState.playerSlot = slot;
       stackState.opponentName = null;
       stackState.gameOverReported = false;
+      stackState.isCashMode = true;
+      stackState.cashEntry = cashEntry;
       // Provably Fair data
       stackState.provablyFairId = match.provablyFairId || null;
       stackState.serverSeedHash = match.serverSeedHash || null;
@@ -3641,10 +4022,11 @@ async function handleStackWagerClick() {
 
       const resultEl = document.getElementById("stack-wager-result");
       if (resultEl) {
+        const modeLabel = `$${cashEntry.toFixed(2)} cash`;
         if (slot === "player2") {
-          resultEl.textContent = "Match found! Finish your run to record your score.";
+          resultEl.textContent = `Match found (${modeLabel})! Finish your run to record your score.`;
         } else {
-          resultEl.textContent = "Match created. Finish your run to record your score.";
+          resultEl.textContent = `Match created (${modeLabel}). Finish your run to record your score.`;
         }
       }
       
@@ -3723,12 +4105,24 @@ function mountChickenRun() {
         <div class="small-text">Distance</div>
         <div class="chicken-score" id="chicken-score">0</div>
         <button class="btn btn-secondary" id="chicken-wager">Start Tournament</button>
-        <div class="bet-controls">
-          <button class="bet-btn" id="chicken-bet-down">-</button>
-          <span class="bet-label" id="chicken-bet-label">Entry fee: 100</span>
-          <button class="bet-btn" id="chicken-bet-up">+</button>
+        <!-- Coin controls hidden for now -->
+        <div id="chicken-coin-controls" style="display:none;">
+          <div class="bet-controls">
+            <button class="bet-btn" id="chicken-bet-down">-</button>
+            <span class="bet-label" id="chicken-bet-label">Entry fee: 100</span>
+            <button class="bet-btn" id="chicken-bet-up">+</button>
+          </div>
+          <div class="small-text" id="chicken-payout" style="margin-top:0.15rem; min-height:1em;"></div>
         </div>
-        <div class="small-text" id="chicken-payout" style="margin-top:0.15rem; min-height:1em;"></div>
+        <!-- Cash entry controls -->
+        <div id="chicken-cash-controls">
+          <div class="bet-controls">
+            <button class="bet-btn" id="chicken-cash-down">-</button>
+            <span class="bet-label" id="chicken-cash-label">Entry: $1.00</span>
+            <button class="bet-btn" id="chicken-cash-up">+</button>
+          </div>
+          <div class="small-text" id="chicken-cash-payout" style="margin-top:0.15rem; min-height:1em;">Win: $1.70</div>
+        </div>
         <button id="chicken-restart-hidden" style="display:none;"></button>
       </div>
       <div class="card" style="margin-top:0.5rem; margin-bottom:0.75rem;">
@@ -3774,6 +4168,8 @@ function mountChickenRun() {
     playerSlot: null,
     gameOverReported: false,
     wagerAmount: null,
+    isCashMode: false,
+    cashEntry: null,
     // Anti-cheat
     antiCheatSession: null,
   };
@@ -4020,6 +4416,8 @@ function mountChickenRun() {
     chickenState.matchId = pendingChickenJoin.matchId;
     chickenState.playerSlot = pendingChickenJoin.slot;
     chickenState.gameOverReported = false;
+    chickenState.isCashMode = pendingChickenJoin.isCashMode || false;
+    chickenState.cashEntry = pendingChickenJoin.cashEntry || null;
     pendingChickenJoin = null;
     const resultEl = document.getElementById("chicken-wager-result");
     if (resultEl) {
@@ -4046,6 +4444,11 @@ function mountChickenRun() {
     });
   }
 
+  const chickenCashDown = document.getElementById("chicken-cash-down");
+  const chickenCashUp = document.getElementById("chicken-cash-up");
+  if (chickenCashDown) chickenCashDown.addEventListener("click", () => decreaseCashEntry());
+  if (chickenCashUp) chickenCashUp.addEventListener("click", () => increaseCashEntry());
+
   // Load leaderboard for this game
   loadLeaderboardForGame("chicken-run", "chicken-leaderboard");
 
@@ -4058,6 +4461,7 @@ function mountChickenRun() {
 
   // Ensure wager labels reflect current amount
   updateWagerButtons();
+  updateChickenCashUI();
 }
 
 async function handleChickenWagerClick() {
@@ -4072,9 +4476,8 @@ async function handleChickenWagerClick() {
 
   const btn = document.getElementById("chicken-wager");
   if (!btn) return;
-  const toggleBtn = document.getElementById("chicken-wager-toggle");
 
-  const wagerAmount = getCurrentWagerAmount();
+  const cashEntry = getCurrentCashEntry();
   const now = Date.now();
   const last = lastWagerAtByGame["chicken-run"] || 0;
   if (now - last < WAGER_COOLDOWN_MS) {
@@ -4089,8 +4492,8 @@ async function handleChickenWagerClick() {
     return;
   }
 
-  if ((currentUser.coin_balance ?? 0) < wagerAmount) {
-    alert(`Not enough coins for a ${wagerAmount}-coin wager.`);
+  if ((currentUser.cash_balance ?? 0) < cashEntry) {
+    alert(`Not enough cash for a $${cashEntry.toFixed(2)} entry. Please deposit more.`);
     return;
   }
 
@@ -4098,14 +4501,15 @@ async function handleChickenWagerClick() {
   btn.style.display = "none";
 
   try {
-    const { match, slot } = await findOrCreateChickenMatch(wagerAmount);
-    if (!match || !slot) {
-      throw new Error("Could not start or join a Chicken wager match.");
+    const match = await createCashMatchForGame("chicken-run", cashEntry);
+    if (!match) {
+      throw new Error("Could not create cash match.");
     }
+    const slot = match.player2_id === currentUser.id ? "player2" : "player1";
 
-    pendingChickenJoin = { matchId: match.id, slot };
+    pendingChickenJoin = { matchId: match.id, slot, isCashMode: true, cashEntry };
 
-    await adjustCurrentUserCoins(-wagerAmount);
+    await loadCurrentUser();
     lastWagerAtByGame["chicken-run"] = now;
 
     if (chickenState) {
@@ -4114,7 +4518,9 @@ async function handleChickenWagerClick() {
       chickenState.playerSlot = slot;
       chickenState.gameOverReported = false;
       chickenState.opponentName = null;
-      chickenState.wagerAmount = wagerAmount;
+      chickenState.wagerAmount = null;
+      chickenState.isCashMode = true;
+      chickenState.cashEntry = cashEntry;
       // Provably Fair data
       chickenState.provablyFairId = match.provablyFairId || null;
       chickenState.serverSeedHash = match.serverSeedHash || null;
@@ -4148,10 +4554,11 @@ async function handleChickenWagerClick() {
         chickenRestartHidden.click();
       }
 
+      const modeLabel = `$${cashEntry.toFixed(2)} cash`;
       if (slot === "player2") {
-        alert("Joined an existing wager! Finish your run to record your score.");
+        alert(`Joined a ${modeLabel} wager! Finish your run to record your score.`);
       } else {
-        alert("Wager match created! Finish your run to record your score.");
+        alert(`Created a ${modeLabel} wager! Finish your run to record your score.`);
       }
       
       // Show Provably Fair badge
@@ -4469,15 +4876,15 @@ async function loadCurrentUser() {
   render();
 }
 
-function getDailyBonusInfo(user) {
+function getSpinInfo(user) {
   const last = user.last_daily_at ? new Date(user.last_daily_at).getTime() : null;
   const now = Date.now();
 
-  if (!last || now - last >= DAILY_BONUS_INTERVAL_MS) {
+  if (!last || now - last >= SPIN_COOLDOWN_MS) {
     return { ready: true, remainingMs: 0, formattedRemaining: "0h 0m" };
   }
 
-  const remainingMs = DAILY_BONUS_INTERVAL_MS - (now - last);
+  const remainingMs = SPIN_COOLDOWN_MS - (now - last);
   const formattedRemaining = formatDuration(remainingMs);
   return { ready: false, remainingMs, formattedRemaining };
 }
@@ -4489,37 +4896,224 @@ function formatDuration(ms) {
   return `${hours}h ${minutes}m`;
 }
 
-async function handleDailyBonusClick() {
+// Builds a 25-slot arrangement from SPIN_WHEEL_PRIZE_GROUPS using a
+// largest-remainder / fair round-robin scheduler: at each position we pick
+// whichever prize group is furthest behind its ideal cumulative share so
+// far. This interleaves ALL groups simultaneously (rather than placing one
+// group fully before the next), producing a uniformly spread pattern around
+// the whole wheel with no clumping.
+function buildSpinWheelSlots() {
+  const groups = SPIN_WHEEL_PRIZE_GROUPS.map((g) => ({ group: g, used: 0 }));
+  const total = groups.reduce((sum, g) => sum + g.group.count, 0);
+  const slots = [];
+
+  for (let i = 0; i < total; i++) {
+    let best = null;
+    let bestScore = -Infinity;
+    for (const entry of groups) {
+      const idealCumulative = ((i + 1) * entry.group.count) / total;
+      const score = idealCumulative - entry.used;
+      if (score > bestScore) {
+        bestScore = score;
+        best = entry;
+      }
+    }
+    best.used += 1;
+    slots.push(best.group);
+  }
+
+  return slots;
+}
+
+function openSpinWheelModal() {
   if (!supabaseClient || !currentUser) return;
 
-  const bonusInfo = getDailyBonusInfo(currentUser);
-  if (!bonusInfo.ready) {
-    alert(`Daily bonus not ready yet. Next in ${bonusInfo.formattedRemaining}.`);
+  const spinInfo = getSpinInfo(currentUser);
+  if (!spinInfo.ready) {
+    alert(`Next free spin in ${spinInfo.formattedRemaining}.`);
     return;
   }
 
+  const existing = document.getElementById("spin-wheel-modal-overlay");
+  if (existing) existing.remove();
+
+  const slots = buildSpinWheelSlots();
+  const sliceDeg = 360 / slots.length;
+
+  const gradientStops = slots
+    .map((g, i) => `${g.color} ${(i * sliceDeg).toFixed(4)}deg ${((i + 1) * sliceDeg).toFixed(4)}deg`)
+    .join(", ");
+
+  const dividerLayer = `repeating-conic-gradient(from 0deg, rgba(15,23,42,0.55) 0deg 1.1deg, transparent 1.1deg ${sliceDeg}deg)`;
+
+  const labelsHtml = slots
+    .map((g, i) => {
+      const centerAngle = i * sliceDeg + sliceDeg / 2;
+      const isBottomHalf = centerAngle > 90 && centerAngle < 270;
+      const flip = isBottomHalf ? 180 : 0;
+      const labelClass = g.jackpot
+        ? "spin-wheel-label spin-wheel-label-glow spin-wheel-jackpot"
+        : "spin-wheel-label";
+      // The jackpot's sparkle is a separate element positioned closer to the
+      // hub (purely radial offset) so it never widens the amount text and
+      // overlaps neighboring slice labels.
+      const star = g.jackpot
+        ? `<span class="spin-wheel-star" style="transform: translate(-50%, -50%) rotate(${flip}deg);">✨</span>`
+        : "";
+      return `
+        <div class="spin-wheel-spoke" style="transform: rotate(${centerAngle}deg);">
+          <span class="${labelClass}" style="color:${g.textColor}; transform: translate(-50%, -50%) rotate(${flip}deg);">${g.label}</span>
+          ${star}
+        </div>`;
+    })
+    .join("");
+
+  const overlay = document.createElement("div");
+  overlay.id = "spin-wheel-modal-overlay";
+  overlay.className = "auth-modal-overlay";
+  overlay.innerHTML = `
+    <div class="auth-modal spin-wheel-modal">
+      <div class="auth-modal-header">
+        <div class="auth-modal-title">🎡 Free Spin</div>
+        <button class="auth-modal-close" id="spin-wheel-modal-close">×</button>
+      </div>
+      <div class="spin-wheel-modal-body">
+        <div class="spin-wheel-outer">
+          <div class="spin-wheel-pointer"></div>
+          <div
+            class="spin-wheel-disc"
+            id="spin-wheel-disc"
+            style="transform: rotate(${spinWheelRotation}deg); background: conic-gradient(from 0deg, ${gradientStops}), ${dividerLayer};"
+          >
+            ${labelsHtml}
+          </div>
+          <div class="spin-wheel-sheen"></div>
+          <div class="spin-wheel-hub">🎁</div>
+        </div>
+        <div class="spin-wheel-result" id="spin-wheel-result"></div>
+        <button class="btn spin-wheel-cta" id="spin-wheel-go-btn">SPIN THE WHEEL</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const close = () => {
+    if (spinInProgress) return;
+    overlay.remove();
+  };
+
+  const closeBtn = document.getElementById("spin-wheel-modal-close");
+  if (closeBtn) closeBtn.addEventListener("click", close);
+
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+
+  const goBtn = document.getElementById("spin-wheel-go-btn");
+  if (goBtn) {
+    goBtn.addEventListener("click", () => handleSpinWheelGo(slots, sliceDeg));
+  }
+}
+
+async function handleSpinWheelGo(slots, sliceDeg) {
+  if (spinInProgress || !supabaseClient || !currentUser) return;
+
+  const spinInfo = getSpinInfo(currentUser);
+  if (!spinInfo.ready) {
+    alert(`Next free spin in ${spinInfo.formattedRemaining}.`);
+    return;
+  }
+
+  const goBtn = document.getElementById("spin-wheel-go-btn");
+  const closeBtn = document.getElementById("spin-wheel-modal-close");
+  const discEl = document.getElementById("spin-wheel-disc");
+  const resultEl = document.getElementById("spin-wheel-result");
+  if (!discEl) return;
+
+  spinInProgress = true;
+  if (goBtn) {
+    goBtn.disabled = true;
+    goBtn.textContent = "Spinning...";
+  }
+  if (closeBtn) closeBtn.disabled = true;
+  if (resultEl) {
+    resultEl.textContent = "";
+    resultEl.className = "spin-wheel-result";
+  }
+
+  const winIndex = Math.floor(Math.random() * slots.length);
+  const prize = slots[winIndex];
+
   try {
     const nowIso = new Date().toISOString();
-    const newBalance = (currentUser.coin_balance ?? 0) + DAILY_BONUS_AMOUNT;
+    const newCashBalance = Number(((currentUser.cash_balance ?? 0) + prize.amount).toFixed(2));
 
+    // Pay out immediately - the animation below is purely cosmetic playback
+    // of a result that has already been recorded.
     const { data, error } = await supabaseClient
       .from("profiles")
       .update({
-        coin_balance: newBalance,
-        last_daily_at: nowIso,
+        cash_balance: newCashBalance,
+        last_daily_at: nowIso, // reused column: tracks last free-spin claim time
       })
       .eq("id", currentUser.id)
-      .select("coin_balance, last_daily_at")
+      .select("cash_balance, last_daily_at")
       .single();
 
     if (error) throw error;
 
-    currentUser.coin_balance = data.coin_balance;
+    currentUser.cash_balance = data.cash_balance;
     currentUser.last_daily_at = data.last_daily_at;
-    render();
+    updateBalanceDisplay();
+
+    // Log the spin result for admin auditing (fire-and-forget; a failure
+    // here shouldn't block the player from seeing their winnings).
+    supabaseClient
+      .from("spin_wheel_log")
+      .insert({
+        user_id: currentUser.id,
+        username: currentUser.username,
+        amount: prize.amount,
+        is_jackpot: !!prize.jackpot,
+      })
+      .then(({ error: logError }) => {
+        if (logError) console.error("Failed to log spin result", logError);
+      });
+
+    const centerAngle = winIndex * sliceDeg + sliceDeg / 2;
+    const extraSpins = 6 + Math.floor(Math.random() * 3); // 6-8 full turns for effect
+    const currentMod = ((spinWheelRotation % 360) + 360) % 360;
+    const targetMod = (360 - centerAngle) % 360;
+    let delta = targetMod - currentMod;
+    if (delta < 0) delta += 360;
+    spinWheelRotation += delta + extraSpins * 360;
+
+    discEl.style.transform = `rotate(${spinWheelRotation}deg)`;
+
+    setTimeout(() => {
+      spinInProgress = false;
+      if (goBtn) {
+        goBtn.disabled = false;
+        goBtn.textContent = "Spin again in 6h";
+      }
+      if (closeBtn) closeBtn.disabled = false;
+      if (resultEl) {
+        resultEl.textContent = `🎉 You won $${prize.amount.toFixed(2)}!`;
+        resultEl.className = prize.jackpot ? "spin-wheel-result win-big" : "spin-wheel-result";
+      }
+      // Refresh the header banner/cooldown state behind the modal.
+      render();
+    }, 5200);
   } catch (err) {
     console.error(err);
-    alert(err.message || "Failed to claim daily bonus.");
+    spinInProgress = false;
+    if (goBtn) {
+      goBtn.disabled = false;
+      goBtn.textContent = "SPIN THE WHEEL";
+    }
+    if (closeBtn) closeBtn.disabled = false;
+    alert(err.message || "Failed to spin the wheel. Please try again.");
   }
 }
 
@@ -4626,6 +5220,9 @@ async function submitMatchScore(matchId, playerSlot, score) {
     if (gameId === "chicken-run") {
       return document.getElementById("chicken-wager-result");
     }
+    if (gameId === "avoid-germs") {
+      return document.getElementById("germs-wager-result");
+    }
     return null;
   }
 
@@ -4659,10 +5256,27 @@ async function submitMatchScore(matchId, playerSlot, score) {
       // Still waiting for the other player. If the match is older than the timeout,
       // treat it as a tie and refund this player.
       if (createdMs && nowMs - createdMs >= MATCH_TIMEOUT_MS) {
-        await supabaseClient
+        // Conditional update: only flip to "complete" if the match hasn't
+        // already been resolved with a real winner by a concurrent client
+        // (e.g. the opponent finished right around the same time). If 0
+        // rows are affected, someone else already settled this match -
+        // re-fetch and show the real outcome instead of a stale tie.
+        const { data: updatedRows, error: updateError } = await supabaseClient
           .from("matches")
           .update({ status: "complete" })
-          .eq("id", match.id);
+          .eq("id", match.id)
+          .neq("status", "complete")
+          .is("winner_id", null)
+          .select("id");
+
+        if (updateError) {
+          console.error("Failed to mark timed-out match complete", updateError);
+        }
+
+        if (!updateError && (!updatedRows || updatedRows.length === 0)) {
+          // Someone else already resolved this match with a real result.
+          return submitMatchScore(matchId, playerSlot, score);
+        }
 
         // Use the same tie refund guard as loadAndRenderWagers so we only
         // refund this player once per device.
@@ -5104,6 +5718,56 @@ async function findOrCreateChickenMatch(wagerAmount) {
   return { match: created, slot: "player1" };
 }
 
+async function findOrCreateGermsMatch(wagerAmount) {
+  if (!supabaseClient || !currentUser) return { match: null, slot: null };
+
+  const { data: openMatches, error: selectError } = await supabaseClient
+    .from("matches")
+    .select("id, game_id, wager, status, player1_id, player2_id")
+    .eq("game_id", "avoid-germs")
+    .eq("wager", wagerAmount)
+    .eq("status", "open")
+    .is("player2_id", null)
+    .neq("player1_id", currentUser.id)
+    .order("created_at", { ascending: true })
+    .limit(1);
+
+  if (selectError && selectError.code !== "PGRST116") {
+    console.error(selectError);
+    throw selectError;
+  }
+
+  const openMatch = openMatches && openMatches.length > 0 ? openMatches[0] : null;
+
+  if (openMatch) {
+    const { data: joinedRows, error: updateError } = await supabaseClient
+      .from("matches")
+      .update({ player2_id: currentUser.id, status: "in_progress" })
+      .eq("id", openMatch.id)
+      .select("id, game_id, wager, status, player1_id, player2_id");
+
+    if (updateError) {
+      console.error(updateError);
+      throw updateError;
+    }
+
+    const joined = joinedRows && joinedRows.length > 0 ? joinedRows[0] : openMatch;
+
+    // Fetch existing provably fair data for this match
+    const pfData = await ProvablyFair.getVerificationData(joined.id);
+    if (pfData) {
+      joined.provablyFairId = pfData.id;
+      joined.serverSeedHash = pfData.server_seed_hash;
+      joined.serverSeed = pfData.server_seed;
+    }
+
+    return { match: joined, slot: "player2" };
+  }
+
+  const created = await createMatchForGame("avoid-germs", wagerAmount);
+  return { match: created, slot: "player1" };
+}
+
 async function loadAndRenderWagers() {
   const container = document.getElementById("wagers-content");
   if (!container || !supabaseClient || !currentUser) return;
@@ -5200,12 +5864,61 @@ async function loadAndRenderWagers() {
       m.player1_id === currentUser.id || m.player2_id === currentUser.id;
     if (!isParticipant) continue;
 
+    // Proactively resolve matches that have sat unresolved (nobody joined,
+    // or an opponent joined but never finished their run) past the timeout
+    // window, instead of waiting for someone to call submitMatchScore.
+    if (m.status !== "complete") {
+      const createdMs = m.created_at ? new Date(m.created_at).getTime() : null;
+      const isStale = createdMs && Date.now() - createdMs >= MATCH_TIMEOUT_MS;
+      if (isStale) {
+        try {
+          // Conditional update: only flip to "complete" if it hasn't
+          // already been resolved with a real winner by a concurrent client.
+          const { data: updatedRows, error: updateError } = await supabaseClient
+            .from("matches")
+            .update({ status: "complete" })
+            .eq("id", m.id)
+            .neq("status", "complete")
+            .is("winner_id", null)
+            .select("id, status, winner_id");
+
+          if (updateError) {
+            console.error("Failed to auto-resolve stale match", updateError);
+          } else if (updatedRows && updatedRows.length > 0) {
+            m.status = "complete";
+          } else {
+            // Already resolved (with or without a winner) by someone else;
+            // refresh our local copy so the rest of this loop/render uses
+            // the real outcome instead of stale "pending" data.
+            const { data: freshMatch } = await supabaseClient
+              .from("matches")
+              .select("status, winner_id")
+              .eq("id", m.id)
+              .single();
+            if (freshMatch) {
+              m.status = freshMatch.status;
+              m.winner_id = freshMatch.winner_id;
+            }
+          }
+        } catch (e) {
+          console.error("Failed to auto-resolve stale match", e);
+        }
+      }
+    }
+
     if (m.status === "complete" && !m.winner_id) {
+      const isCashMatch = m.currency === "CASH";
+      const refundAmount = isCashMatch ? m.cash_entry : m.wager;
       const refundKey = `tie_refunded_${m.id}_${currentUser.id}`;
       try {
         const already = window.localStorage.getItem(refundKey);
-        if (!already) {
-          await adjustCurrentUserCoins(m.wager);
+        if (!already && refundAmount) {
+          if (isCashMatch) {
+            // Cash refund would need server-side handling - for now just mark as refunded
+            // The server should handle this via a separate flow
+          } else {
+            await adjustCurrentUserCoins(refundAmount);
+          }
           window.localStorage.setItem(refundKey, "1");
         }
       } catch (e) {
@@ -5572,10 +6285,10 @@ function mountSpeedDash() {
         <h3 style="margin-bottom:1rem;">Speed Dash</h3>
         <p class="small-text" style="margin-bottom:1rem;">Click fast to sprint! First to the finish line wins.</p>
         
-        <!-- Mode toggle: Coins / Cash -->
-        <div class="mode-toggle" style="display:flex;justify-content:center;gap:0.25rem;margin-bottom:1rem;">
-          <button class="btn btn-secondary active" id="dash-mode-coin" style="padding:0.3rem 1rem;font-size:0.85rem;">Coins</button>
-          <button class="btn btn-secondary" id="dash-mode-cash" style="padding:0.3rem 1rem;font-size:0.85rem;">💵 Cash</button>
+        <!-- Mode toggle: Coins / Cash (coin option hidden for now) -->
+        <div class="mode-toggle" style="display:none;justify-content:center;gap:0.25rem;margin-bottom:1rem;">
+          <button class="btn btn-secondary" id="dash-mode-coin" style="padding:0.3rem 1rem;font-size:0.85rem;">Coins</button>
+          <button class="btn btn-secondary active" id="dash-mode-cash" style="padding:0.3rem 1rem;font-size:0.85rem;">💵 Cash</button>
         </div>
         
         <div style="margin-bottom:1rem;display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;">
@@ -5596,8 +6309,8 @@ function mountSpeedDash() {
           </div>
         </div>
         
-        <!-- Coin entry controls -->
-        <div id="dash-coin-controls" style="margin-bottom:1rem;">
+        <!-- Coin entry controls (hidden for now) -->
+        <div id="dash-coin-controls" style="display:none;margin-bottom:1rem;">
           <label class="small-text">Entry:</label>
           <select id="dash-entry" style="margin-left:0.5rem;padding:0.25rem;">
             <option value="50">50 coins</option>
@@ -5607,8 +6320,8 @@ function mountSpeedDash() {
           <div class="small-text" id="dash-coin-payout" style="margin-top:0.25rem;color:#4ade80;">Win: 85 coins (after 15% fee)</div>
         </div>
         
-        <!-- Cash entry controls (hidden by default) -->
-        <div id="dash-cash-controls" style="display:none;margin-bottom:1rem;">
+        <!-- Cash entry controls -->
+        <div id="dash-cash-controls" style="margin-bottom:1rem;">
           <div class="bet-controls" style="justify-content:center;">
             <button class="bet-btn" id="dash-cash-down">-</button>
             <span class="bet-label" id="dash-cash-label">Entry: $1.00</span>
@@ -5694,8 +6407,8 @@ function mountSpeedDash() {
   const cashBalanceEl = document.getElementById("dash-cash-balance");
   const coinPayoutEl = document.getElementById("dash-coin-payout");
   
-  // Cash mode state
-  let dashCashMode = false;
+  // Cash mode state (coin wagers hidden for now, default to cash)
+  let dashCashMode = true;
   const DASH_CASH_ENTRIES = [0.25, 0.50, 1.00, 2.00, 5.00, 10.00, 25.00];
   let dashCashIndex = 2; // Default to $1.00
   
@@ -5774,6 +6487,9 @@ function mountSpeedDash() {
     entrySelect.addEventListener("change", updateDashCoinPayoutUI);
     updateDashCoinPayoutUI();
   }
+
+  // Coin wagers are hidden for now - default to cash mode UI
+  updateDashCashUI();
   
   // Update payout display when player count changes
   const playersSelect = document.getElementById("dash-players");
@@ -7205,6 +7921,18 @@ function mountSpeedDash() {
 
 // --- Init ---
 loadCurrentUser();
+
+// Logo click → home
+const homeLogo = document.querySelector(".logo");
+if (homeLogo) {
+  homeLogo.style.cursor = "pointer";
+  homeLogo.addEventListener("click", () => {
+    currentGameId = null;
+    currentView = "hub";
+    stopAllGames();
+    render();
+  });
+}
 
 document.addEventListener("fullscreenchange", () => {
   const btn = document.getElementById("game-fullscreen-toggle");

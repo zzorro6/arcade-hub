@@ -47,6 +47,24 @@
       background: linear-gradient(135deg, #6366f1, #8b5cf6);
       color: white;
     }
+    .op-filter-btn {
+      padding: 0.4rem 0.9rem;
+      background: #1e293b;
+      border: none;
+      border-radius: 999px;
+      color: #9ca3af;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 0.8rem;
+      transition: all 0.2s;
+    }
+    .op-filter-btn:hover {
+      background: #334155;
+    }
+    .op-filter-btn.active {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+    }
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -238,9 +256,9 @@
 </head>
 <body>
   <header class="site-header">
-    <a href="/arcade-hub/index.html" class="logo">Arcade Hub</a>
+    <a href="index.html" class="logo">Arcade Hub</a>
     <nav class="nav-links">
-      <a href="/arcade-hub/index.html" class="btn" style="background:#374151;padding:8px 16px;border-radius:8px;text-decoration:none;">
+      <a href="index.html" class="btn" style="background:#374151;padding:8px 16px;border-radius:8px;text-decoration:none;">
         ← Back to Games
       </a>
     </nav>
@@ -249,7 +267,12 @@
   <main class="admin-container">
     <div class="admin-header">
       <div class="admin-title">🛡️ Admin Panel</div>
-      <div id="admin-status" style="color:#9ca3af;"></div>
+      <div style="display:flex;align-items:center;gap:1rem;">
+        <div id="admin-status" style="color:#9ca3af;"></div>
+        <a href="index.html" class="btn" style="background:#374151;color:white;padding:8px 16px;border-radius:8px;text-decoration:none;font-size:0.85rem;">
+          ← Back to Arcade Hub
+        </a>
+      </div>
     </div>
 
     <!-- Stats -->
@@ -278,14 +301,16 @@
 
     <!-- Tabs -->
     <div class="tabs">
-      <button class="tab active" onclick="showTab('cheats')">🚨 Cheat Logs</button>
-      <button class="tab" onclick="showTab('appeals')">📝 Appeals</button>
-      <button class="tab" onclick="showTab('bans')">🚫 Active Bans</button>
+      <button class="tab active" onclick="showTab('operator')">💰 Operator Dashboard</button>
       <button class="tab" onclick="showTab('players')">👥 All Players</button>
+      <button class="tab" onclick="showTab('spins')">🎡 Spin Wheel</button>
+      <button class="tab" onclick="showTab('bans')">🚫 Active Bans</button>
+      <button class="tab" onclick="showTab('appeals')">📝 Appeals</button>
+      <button class="tab" onclick="showTab('cheats')">🚨 Cheat Logs</button>
     </div>
 
     <!-- Filter Bar -->
-    <div class="filter-bar" id="filter-bar">
+    <div class="filter-bar" id="filter-bar" style="display:none;">
       <select class="filter-select" id="filter-severity" onchange="loadCheatLogs()">
         <option value="">All Severities</option>
         <option value="LOW">LOW</option>
@@ -302,37 +327,73 @@
 
     <!-- Content -->
     <div id="tab-content">
-      <!-- Cheat Logs Table -->
-      <div id="cheats-tab">
-        <table class="data-table" id="cheats-table">
+      <!-- All Players Tab -->
+      <div id="players-tab" style="display:none;">
+        <div style="margin-bottom:1rem;display:flex;gap:1rem;align-items:center;">
+          <input type="text" id="player-search" placeholder="Search by username..." 
+            style="flex:1;background:#0f172a;border:1px solid #374151;border-radius:8px;padding:0.75rem 1rem;color:white;font-size:1rem;"
+            oninput="searchPlayers()">
+          <button class="action-btn btn-view" onclick="loadAllPlayers()" style="padding:0.75rem 1.5rem;">Refresh</button>
+        </div>
+        <div id="players-count" style="color:#9ca3af;font-size:0.85rem;margin-bottom:1rem;"></div>
+        <table class="data-table" id="players-table">
           <thead>
             <tr>
-              <th>Time</th>
-              <th>Player</th>
-              <th>Game</th>
-              <th>Severity</th>
-              <th>Flags</th>
-              <th>Auto-Banned</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="cheats-tbody"></tbody>
-        </table>
-      </div>
-
-      <!-- Appeals Table -->
-      <div id="appeals-tab" style="display:none;">
-        <table class="data-table" id="appeals-table">
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Player</th>
-              <th>Appeal Reason</th>
+              <th>Username</th>
+              <th>Cash</th>
+              <th>Joined</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
-          <tbody id="appeals-tbody"></tbody>
+          <tbody id="players-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Spin Wheel Tab -->
+      <div id="spins-tab" style="display:none;">
+        <div class="stats-grid" style="margin-bottom:1.5rem;">
+          <div class="stat-card">
+            <div class="stat-value" id="spin-stat-total-amount">-</div>
+            <div class="stat-label">Total Bonus Paid (All Time)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="spin-stat-today-amount">-</div>
+            <div class="stat-label">Paid Today</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="spin-stat-hour-amount">-</div>
+            <div class="stat-label">Paid Last Hour</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="spin-stat-count">-</div>
+            <div class="stat-label">Total Spins</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="spin-stat-avg">-</div>
+            <div class="stat-label">Average Payout</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="spin-stat-jackpots">-</div>
+            <div class="stat-label">Jackpots Hit</div>
+          </div>
+        </div>
+        <div style="margin-bottom:1rem;display:flex;gap:1rem;align-items:center;">
+          <input type="text" id="spin-search" placeholder="Search by username..."
+            style="flex:1;background:#0f172a;border:1px solid #374151;border-radius:8px;padding:0.75rem 1rem;color:white;font-size:1rem;"
+            oninput="searchSpinLogs()">
+          <button class="action-btn btn-view" onclick="loadSpinLogs()" style="padding:0.75rem 1.5rem;">Refresh</button>
+        </div>
+        <table class="data-table" id="spins-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Player</th>
+              <th>Amount Won</th>
+              <th>Jackpot</th>
+            </tr>
+          </thead>
+          <tbody id="spins-tbody"></tbody>
         </table>
       </div>
 
@@ -352,27 +413,84 @@
         </table>
       </div>
 
-      <!-- All Players Tab -->
-      <div id="players-tab" style="display:none;">
-        <div style="margin-bottom:1rem;display:flex;gap:1rem;align-items:center;">
-          <input type="text" id="player-search" placeholder="Search by username..." 
-            style="flex:1;background:#0f172a;border:1px solid #374151;border-radius:8px;padding:0.75rem 1rem;color:white;font-size:1rem;"
-            oninput="searchPlayers()">
-          <button class="action-btn btn-view" onclick="loadAllPlayers()" style="padding:0.75rem 1.5rem;">Refresh</button>
-        </div>
-        <div id="players-count" style="color:#9ca3af;font-size:0.85rem;margin-bottom:1rem;"></div>
-        <table class="data-table" id="players-table">
+      <!-- Appeals Table -->
+      <div id="appeals-tab" style="display:none;">
+        <table class="data-table" id="appeals-table">
           <thead>
             <tr>
-              <th>Username</th>
-              <th>Coins</th>
-              <th>Cash</th>
-              <th>Joined</th>
+              <th>Time</th>
+              <th>Player</th>
+              <th>Appeal Reason</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
-          <tbody id="players-tbody"></tbody>
+          <tbody id="appeals-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Cheat Logs Table -->
+      <div id="cheats-tab" style="display:none;">
+        <table class="data-table" id="cheats-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Player</th>
+              <th>Game</th>
+              <th>Severity</th>
+              <th>Flags</th>
+              <th>Auto-Banned</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="cheats-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Operator Dashboard Tab -->
+      <div id="operator-tab">
+        <div style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+          <div id="op-filter-group" style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+            <button class="op-filter-btn" data-filter="hour" onclick="setOperatorFilter('hour')">Last Hour</button>
+            <button class="op-filter-btn" data-filter="day" onclick="setOperatorFilter('day')">Today</button>
+            <button class="op-filter-btn" data-filter="week" onclick="setOperatorFilter('week')">This Week</button>
+            <button class="op-filter-btn" data-filter="month" onclick="setOperatorFilter('month')">This Month</button>
+            <button class="op-filter-btn active" data-filter="all" onclick="setOperatorFilter('all')">All Time</button>
+          </div>
+          <button class="action-btn btn-view" onclick="loadOperatorDashboard()" style="padding:0.75rem 1.5rem;">Refresh</button>
+        </div>
+        <div class="stats-grid" style="margin-bottom:1.5rem;">
+          <div class="stat-card">
+            <div class="stat-value" id="op-stat-total">-</div>
+            <div class="stat-label" id="op-stat-total-label">Total Cash Fees (All Time)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="op-stat-settled">-</div>
+            <div class="stat-label" id="op-stat-settled-label">Settled Tournaments (All Time)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="op-stat-avg">-</div>
+            <div class="stat-label">Average Fee per Settlement</div>
+          </div>
+        </div>
+        <div style="margin-bottom:1.5rem;">
+          <div style="color:white;font-weight:600;margin-bottom:0.5rem;">Fees by Game</div>
+          <div id="op-fees-by-game" style="background:#1e293b;border-radius:12px;padding:1rem;color:#d1d5db;font-size:0.9rem;"></div>
+        </div>
+        <div style="color:white;font-weight:600;margin-bottom:0.5rem;">Recent Settlements</div>
+        <table class="data-table" id="operator-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Game</th>
+              <th>Entry</th>
+              <th>Winner</th>
+              <th>Loser</th>
+              <th>Fee</th>
+              <th>Payout</th>
+            </tr>
+          </thead>
+          <tbody id="operator-tbody"></tbody>
         </table>
       </div>
     </div>
@@ -381,7 +499,7 @@
   <script>
     const SUPABASE_URL = "https://wokarixqtacrqkupudom.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indva2FyaXhxdGFjcnFrdXB1ZG9tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM2MDA4NjAsImV4cCI6MjA3OTE3Njg2MH0.rJKRCRYyJnzMv2uAoQ4NqjGRbCSa3nvELedbJIOGyAk";
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const adminSb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // Admin access control - same usernames as operator dashboard
     const ADMIN_USERNAMES = ["zoominz9"];
@@ -389,7 +507,7 @@
 
     // Check admin access on page load
     async function checkAdminAccess() {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await adminSb.auth.getSession();
       
       if (!session) {
         showAccessDenied("Please log in to access the admin panel.");
@@ -397,7 +515,7 @@
       }
 
       // Get user profile
-      const { data: profile } = await supabase
+      const { data: profile } = await adminSb
         .from('profiles')
         .select('username')
         .eq('id', session.user.id)
@@ -419,39 +537,39 @@
           <div style="font-size:4rem;margin-bottom:1rem;">🚫</div>
           <div style="font-size:1.5rem;font-weight:bold;color:#ef4444;margin-bottom:1rem;">Access Denied</div>
           <div style="color:#9ca3af;margin-bottom:2rem;">${message}</div>
-          <a href="/arcade-hub/index.html" class="btn" style="background:#6366f1;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;">
+          <a href="index.html" class="btn" style="background:#6366f1;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;">
             ← Back to Arcade Hub
           </a>
         </div>
       `;
     }
 
-    let currentTab = 'cheats';
+    let currentTab = 'operator';
 
     // Load stats
     async function loadStats() {
       // Total players
-      const { count: totalPlayers } = await supabase
+      const { count: totalPlayers } = await adminSb
         .from('profiles')
         .select('*', { count: 'exact', head: true });
       document.getElementById('stat-players').textContent = totalPlayers || 0;
 
       // Pending reviews
-      const { count: pending } = await supabase
+      const { count: pending } = await adminSb
         .from('cheat_logs')
         .select('*', { count: 'exact', head: true })
         .eq('reviewed', false);
       document.getElementById('stat-pending').textContent = pending || 0;
 
       // Active bans
-      const { count: banned } = await supabase
+      const { count: banned } = await adminSb
         .from('profiles')
         .select('*', { count: 'exact', head: true })
         .gt('banned_until', new Date().toISOString());
       document.getElementById('stat-banned').textContent = banned || 0;
 
       // Pending appeals
-      const { count: appeals } = await supabase
+      const { count: appeals } = await adminSb
         .from('ban_appeals')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'pending');
@@ -460,7 +578,7 @@
       // Detections today
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const { count: todayCount } = await supabase
+      const { count: todayCount } = await adminSb
         .from('cheat_logs')
         .select('*', { count: 'exact', head: true })
         .gte('created_at', today.toISOString());
@@ -477,12 +595,16 @@
       document.getElementById('appeals-tab').style.display = tab === 'appeals' ? 'block' : 'none';
       document.getElementById('bans-tab').style.display = tab === 'bans' ? 'block' : 'none';
       document.getElementById('players-tab').style.display = tab === 'players' ? 'block' : 'none';
+      document.getElementById('spins-tab').style.display = tab === 'spins' ? 'block' : 'none';
+      document.getElementById('operator-tab').style.display = tab === 'operator' ? 'block' : 'none';
       document.getElementById('filter-bar').style.display = tab === 'cheats' ? 'flex' : 'none';
 
       if (tab === 'cheats') loadCheatLogs();
       if (tab === 'appeals') loadAppeals();
       if (tab === 'bans') loadBans();
       if (tab === 'players') loadAllPlayers();
+      if (tab === 'spins') loadSpinLogs();
+      if (tab === 'operator') loadOperatorDashboard();
     }
 
     // All players data cache for search
@@ -491,14 +613,14 @@
     // Load all players
     async function loadAllPlayers() {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await adminSb
           .from('profiles')
           .select('*')
           .limit(500);
 
         if (error) {
           console.error('Error loading players:', error);
-          document.getElementById('players-tbody').innerHTML = '<tr><td colspan="6" class="empty-state">Error loading players: ' + error.message + '</td></tr>';
+          document.getElementById('players-tbody').innerHTML = '<tr><td colspan="5" class="empty-state">Error loading players: ' + error.message + '</td></tr>';
           return;
         }
 
@@ -507,7 +629,7 @@
         renderPlayers(allPlayersCache);
       } catch (e) {
         console.error('Exception loading players:', e);
-        document.getElementById('players-tbody').innerHTML = '<tr><td colspan="6" class="empty-state">Error: ' + e.message + '</td></tr>';
+        document.getElementById('players-tbody').innerHTML = '<tr><td colspan="5" class="empty-state">Error: ' + e.message + '</td></tr>';
       }
     }
 
@@ -529,7 +651,7 @@
     function renderPlayers(players) {
       const tbody = document.getElementById('players-tbody');
       if (!players || players.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No players found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No players found</td></tr>';
         return;
       }
 
@@ -558,7 +680,6 @@
               <strong>${username}</strong>
               <br><span style="color:#6b7280;font-size:0.7rem;">${p.id ? p.id.substring(0,8) : ''}...</span>
             </td>
-            <td style="color:#fbbf24;">${(p.coin_balance || 0).toLocaleString()}</td>
             <td style="color:#22c55e;">$${(p.cash_balance || 0).toFixed(2)}</td>
             <td>${formatJoinDate(p.created_at)}</td>
             <td>${statusBadge}</td>
@@ -683,9 +804,9 @@
     // Perform the actual ban
     async function performBan(playerId, username, banUntil, reason, durationText) {
       try {
-        const { data: profile } = await supabase.from('profiles').select('ban_count').eq('id', playerId).single();
+        const { data: profile } = await adminSb.from('profiles').select('ban_count').eq('id', playerId).single();
         
-        const { data, error } = await supabase
+        const { data, error } = await adminSb
           .from('profiles')
           .update({
             banned_until: banUntil.toISOString(),
@@ -702,7 +823,7 @@
         }
 
         // Log to ban history
-        await supabase.from('ban_history').insert({
+        await adminSb.from('ban_history').insert({
           player_id: playerId,
           username: username,
           banned_by: currentUser?.username || 'Admin',
@@ -727,9 +848,9 @@
       banUntil.setDate(banUntil.getDate() + days);
 
       try {
-        const { data: profile } = await supabase.from('profiles').select('ban_count').eq('id', playerId).single();
+        const { data: profile } = await adminSb.from('profiles').select('ban_count').eq('id', playerId).single();
         
-        const { data, error } = await supabase
+        const { data, error } = await adminSb
           .from('profiles')
           .update({
             banned_until: banUntil.toISOString(),
@@ -757,7 +878,7 @@
 
     // View player details
     async function viewPlayerDetails(playerId) {
-      const { data: player } = await supabase
+      const { data: player } = await adminSb
         .from('profiles')
         .select('*')
         .eq('id', playerId)
@@ -765,7 +886,7 @@
 
       if (!player) return;
 
-      const { data: cheatLogs } = await supabase
+      const { data: cheatLogs } = await adminSb
         .from('cheat_logs')
         .select('*')
         .eq('player_id', playerId)
@@ -773,7 +894,7 @@
         .limit(10);
 
       // Fetch ban history
-      const { data: banHistory } = await supabase
+      const { data: banHistory } = await adminSb
         .from('ban_history')
         .select('*')
         .eq('player_id', playerId)
@@ -800,10 +921,6 @@
             <div>
               <div style="color:#9ca3af;font-size:0.85rem;">Status</div>
               <div style="color:${isBanned ? '#ef4444' : '#22c55e'};font-weight:bold;">${isBanned ? 'BANNED' : 'ACTIVE'}</div>
-            </div>
-            <div>
-              <div style="color:#9ca3af;font-size:0.85rem;">Coins</div>
-              <div style="color:#fbbf24;font-weight:bold;">${(player.coin_balance || 0).toLocaleString()}</div>
             </div>
             <div>
               <div style="color:#9ca3af;font-size:0.85rem;">Cash</div>
@@ -876,7 +993,7 @@
       const severity = document.getElementById('filter-severity').value;
       const reviewed = document.getElementById('filter-reviewed').value;
 
-      let query = supabase
+      let query = adminSb
         .from('cheat_logs')
         .select('*')
         .order('created_at', { ascending: false })
@@ -917,7 +1034,7 @@
 
     // View cheat log details
     async function viewCheatLog(logId) {
-      const { data: log } = await supabase
+      const { data: log } = await adminSb
         .from('cheat_logs')
         .select('*')
         .eq('id', logId)
@@ -1005,7 +1122,7 @@
     async function markReviewed(logId, action = 'DISMISSED') {
       const notes = document.getElementById(`admin-notes-${logId}`)?.value || '';
       
-      await supabase
+      await adminSb
         .from('cheat_logs')
         .update({
           reviewed: true,
@@ -1025,18 +1142,18 @@
       const banUntil = new Date();
       banUntil.setDate(banUntil.getDate() + days);
 
-      await supabase
+      await adminSb
         .from('profiles')
         .update({
           banned_until: banUntil.toISOString(),
           ban_reason: `Admin ban: Cheating detected`,
-          ban_count: supabase.sql`ban_count + 1`
+          
         })
         .eq('id', playerId);
 
       // Also update the ban_count manually since sql template might not work
-      const { data: profile } = await supabase.from('profiles').select('ban_count').eq('id', playerId).single();
-      await supabase.from('profiles').update({ ban_count: (profile?.ban_count || 0) + 1 }).eq('id', playerId);
+      const { data: profile } = await adminSb.from('profiles').select('ban_count').eq('id', playerId).single();
+      await adminSb.from('profiles').update({ ban_count: (profile?.ban_count || 0) + 1 }).eq('id', playerId);
 
       await markReviewed(logId, 'BANNED');
       alert(`${username} has been banned for ${days} days.`);
@@ -1045,7 +1162,7 @@
 
     // Load appeals
     async function loadAppeals() {
-      const { data } = await supabase
+      const { data } = await adminSb
         .from('ban_appeals')
         .select('*')
         .order('created_at', { ascending: false })
@@ -1059,7 +1176,7 @@
 
       // Get all unique player IDs to check their ban status
       const playerIds = [...new Set(data.map(a => a.player_id))];
-      const { data: profiles } = await supabase
+      const { data: profiles } = await adminSb
         .from('profiles')
         .select('id, banned_until, ban_reason')
         .in('id', playerIds);
@@ -1108,7 +1225,7 @@
 
     // Mark expired appeal as reviewed
     async function markAppealExpired(appealId) {
-      await supabase
+      await adminSb
         .from('ban_appeals')
         .update({
           status: 'expired',
@@ -1125,7 +1242,7 @@
       const response = prompt(`Enter response message for the player:`);
       if (response === null) return;
 
-      await supabase
+      await adminSb
         .from('ban_appeals')
         .update({
           status,
@@ -1135,7 +1252,7 @@
         .eq('id', appealId);
 
       if (status === 'approved') {
-        await supabase
+        await adminSb
           .from('profiles')
           .update({ banned_until: null, ban_reason: null })
           .eq('id', playerId);
@@ -1148,7 +1265,7 @@
 
     // Load active bans
     async function loadBans() {
-      const { data } = await supabase
+      const { data } = await adminSb
         .from('profiles')
         .select('id, username, banned_until, ban_reason, ban_count')
         .gt('banned_until', new Date().toISOString())
@@ -1177,7 +1294,7 @@
     async function unbanPlayer(playerId) {
       if (!confirm('Are you sure you want to unban this player?')) return;
       
-      await supabase
+      await adminSb
         .from('profiles')
         .update({ banned_until: null, ban_reason: null })
         .eq('id', playerId);
@@ -1187,12 +1304,292 @@
       alert('Player unbanned.');
     }
 
+    // All spin logs cache for search
+    let allSpinLogsCache = [];
+
+    // Load spin wheel bonus history + aggregate stats
+    async function loadSpinLogs() {
+      try {
+        const { data, error } = await adminSb
+          .from('spin_wheel_log')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(500);
+
+        if (error) {
+          console.error('Error loading spin logs:', error);
+          document.getElementById('spins-tbody').innerHTML = '<tr><td colspan="4" class="empty-state">Error loading spin logs: ' + error.message + '</td></tr>';
+          return;
+        }
+
+        allSpinLogsCache = data || [];
+        renderSpinStats(allSpinLogsCache);
+        renderSpinLogs(allSpinLogsCache);
+      } catch (e) {
+        console.error('Exception loading spin logs:', e);
+        document.getElementById('spins-tbody').innerHTML = '<tr><td colspan="4" class="empty-state">Error: ' + e.message + '</td></tr>';
+      }
+    }
+
+    // Compute + render aggregate spin stats
+    function renderSpinStats(logs) {
+      const now = new Date();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+      let totalAmount = 0;
+      let todayAmount = 0;
+      let hourAmount = 0;
+      let jackpots = 0;
+
+      for (const row of logs) {
+        const amount = Number(row.amount) || 0;
+        const createdAt = row.created_at ? new Date(row.created_at) : null;
+        totalAmount += amount;
+        if (row.is_jackpot) jackpots += 1;
+        if (createdAt && createdAt >= today) todayAmount += amount;
+        if (createdAt && createdAt >= oneHourAgo) hourAmount += amount;
+      }
+
+      const count = logs.length;
+      const avg = count > 0 ? totalAmount / count : 0;
+
+      document.getElementById('spin-stat-total-amount').textContent = `$${totalAmount.toFixed(2)}`;
+      document.getElementById('spin-stat-today-amount').textContent = `$${todayAmount.toFixed(2)}`;
+      document.getElementById('spin-stat-hour-amount').textContent = `$${hourAmount.toFixed(2)}`;
+      document.getElementById('spin-stat-count').textContent = count;
+      document.getElementById('spin-stat-avg').textContent = `$${avg.toFixed(2)}`;
+      document.getElementById('spin-stat-jackpots').textContent = jackpots;
+    }
+
+    // Search spin logs by username
+    function searchSpinLogs() {
+      const query = document.getElementById('spin-search').value.toLowerCase().trim();
+      if (!query) {
+        renderSpinLogs(allSpinLogsCache);
+        return;
+      }
+      const filtered = allSpinLogsCache.filter(r =>
+        r.username?.toLowerCase().includes(query) ||
+        r.user_id?.toLowerCase().includes(query)
+      );
+      renderSpinLogs(filtered);
+    }
+
+    // Render spin logs table
+    function renderSpinLogs(logs) {
+      const tbody = document.getElementById('spins-tbody');
+      if (!logs || logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No spins recorded yet</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = logs.map(r => {
+        const timeLabel = r.created_at ? new Date(r.created_at).toLocaleString() : '-';
+        const username = r.username || 'Unknown';
+        const jackpotBadge = r.is_jackpot
+          ? '<span style="background:#facc15;color:#000;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:bold;">JACKPOT</span>'
+          : '<span style="color:#6b7280;">-</span>';
+        return `
+          <tr>
+            <td>${timeLabel}</td>
+            <td>
+              <strong>${username}</strong>
+              <br><span style="color:#6b7280;font-size:0.7rem;">${r.user_id ? r.user_id.substring(0,8) : ''}...</span>
+            </td>
+            <td style="color:#22c55e;">$${Number(r.amount || 0).toFixed(2)}</td>
+            <td>${jackpotBadge}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Game id -> title map (mirrors gameCards in main.js)
+    const GAME_TITLES = {
+      'flappy-race': 'Flappy Race',
+      'stack-duel': 'Stack Duel',
+      'chicken-run': 'Chicken Run',
+      'reaction-duel': 'Reaction Duel',
+      'speed-dash': 'Speed Dash',
+      'avoid-germs': 'Avoid the Germs',
+    };
+
+    // Operator dashboard time filter state
+    let operatorFilter = 'all';
+    const OP_FILTER_LABELS = {
+      hour: 'Last Hour',
+      day: 'Today',
+      week: 'This Week',
+      month: 'This Month',
+      all: 'All Time',
+    };
+
+    function getOperatorFilterCutoff(filter) {
+      const now = new Date();
+      if (filter === 'hour') return new Date(now.getTime() - 60 * 60 * 1000);
+      if (filter === 'day') {
+        const d = new Date(now);
+        d.setHours(0, 0, 0, 0);
+        return d;
+      }
+      if (filter === 'week') return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      if (filter === 'month') return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      return null; // all time
+    }
+
+    function setOperatorFilter(filter) {
+      operatorFilter = filter;
+      document.querySelectorAll('#op-filter-group .op-filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-filter') === filter);
+      });
+      loadOperatorDashboard();
+    }
+
+    // Load + render the operator dashboard (cash fees / settlements)
+    async function loadOperatorDashboard() {
+      const tbody = document.getElementById('operator-tbody');
+      const feesByGameEl = document.getElementById('op-fees-by-game');
+      const label = OP_FILTER_LABELS[operatorFilter] || 'All Time';
+      document.getElementById('op-stat-total-label').textContent = `Total Cash Fees (${label})`;
+      document.getElementById('op-stat-settled-label').textContent = `Settled Tournaments (${label})`;
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Loading...</td></tr>';
+      feesByGameEl.textContent = 'Loading...';
+
+      try {
+        const cutoff = getOperatorFilterCutoff(operatorFilter);
+        let query = adminSb
+          .from('fees_ledger')
+          .select('id, match_id, game_id, total_entry, fee_amount, payout_amount, winner_id, created_at, currency')
+          .eq('currency', 'CASH')
+          .order('created_at', { ascending: false })
+          .limit(5000);
+        if (cutoff) {
+          query = query.gte('created_at', cutoff.toISOString());
+        }
+        const { data, error } = await query;
+
+        if (error) {
+          console.error('Error loading operator dashboard:', error);
+          tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Error: ' + error.message + '</td></tr>';
+          feesByGameEl.textContent = 'Error loading fees by game.';
+          return;
+        }
+
+        if (!data || data.length === 0) {
+          document.getElementById('op-stat-total').textContent = '$0.00';
+          document.getElementById('op-stat-settled').textContent = '0';
+          document.getElementById('op-stat-avg').textContent = '$0.00';
+          feesByGameEl.textContent = 'No fee data yet.';
+          tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No settled tournaments yet</td></tr>';
+          return;
+        }
+
+        // Resolve game_id fallback + loser info via linked matches
+        const matchIds = data.map(r => r.match_id).filter(Boolean);
+        let matchesById = {};
+        if (matchIds.length > 0) {
+          const { data: matches, error: matchesError } = await adminSb
+            .from('matches')
+            .select('id, game_id, player1_id, player2_id, player3_id')
+            .in('id', matchIds);
+          if (!matchesError && matches) {
+            matchesById = Object.fromEntries(matches.map(m => [m.id, m]));
+          }
+        }
+
+        const resolveGameId = (row) => {
+          const match = row.match_id ? matchesById[row.match_id] : null;
+          return row.game_id || match?.game_id || 'unknown';
+        };
+        const getLoserIds = (match, winnerId) => {
+          if (!match || !winnerId) return [];
+          return [match.player1_id, match.player2_id, match.player3_id].filter(id => id && id !== winnerId);
+        };
+
+        let totalFees = 0;
+        const feesByGameMap = new Map();
+
+        for (const row of data) {
+          const fee = row.fee_amount || 0;
+          totalFees += fee;
+
+          const gameId = resolveGameId(row);
+          const current = feesByGameMap.get(gameId) || { fees: 0, count: 0 };
+          current.fees += fee;
+          current.count += 1;
+          feesByGameMap.set(gameId, current);
+        }
+
+        document.getElementById('op-stat-total').textContent = `$${totalFees.toFixed(2)}`;
+        document.getElementById('op-stat-settled').textContent = data.length;
+        document.getElementById('op-stat-avg').textContent = `$${(totalFees / data.length).toFixed(2)}`;
+
+        const feesByGameLines = Array.from(feesByGameMap.entries())
+          .sort((a, b) => b[1].fees - a[1].fees)
+          .map(([gameId, info]) => {
+            const title = GAME_TITLES[gameId] || gameId;
+            return `<div style="margin-bottom:0.25rem;">${title}: <strong style="color:#22c55e;">$${info.fees.toFixed(2)}</strong> fees across ${info.count} settlements</div>`;
+          })
+          .join('');
+        feesByGameEl.innerHTML = feesByGameLines || 'No fee data by game yet.';
+
+        // Resolve winner/loser usernames (show all rows for the selected period)
+        const userIdSet = new Set();
+        for (const r of data) {
+          if (r.winner_id) userIdSet.add(r.winner_id);
+          const match = r.match_id ? matchesById[r.match_id] : null;
+          getLoserIds(match, r.winner_id).forEach(id => userIdSet.add(id));
+        }
+
+        let userNamesById = {};
+        const userIds = Array.from(userIdSet);
+        if (userIds.length > 0) {
+          const { data: profiles, error: profilesError } = await adminSb
+            .from('profiles')
+            .select('id, username')
+            .in('id', userIds);
+          if (!profilesError && profiles) {
+            userNamesById = Object.fromEntries(profiles.map(p => [p.id, p.username || 'Unknown']));
+          }
+        }
+
+        tbody.innerHTML = data.map(r => {
+          const gameId = resolveGameId(r);
+          const title = GAME_TITLES[gameId] || gameId;
+          const match = r.match_id ? matchesById[r.match_id] : null;
+          const winnerName = r.winner_id ? (userNamesById[r.winner_id] || 'Unknown') : 'Tie';
+          const loserIds = getLoserIds(match, r.winner_id);
+          const loserName = loserIds.length > 0
+            ? loserIds.map(id => userNamesById[id] || 'Unknown').join(', ')
+            : '-';
+          const timeLabel = r.created_at ? new Date(r.created_at).toLocaleString() : '-';
+
+          return `
+            <tr>
+              <td>${timeLabel}</td>
+              <td>${title}</td>
+              <td>$${(r.total_entry ?? 0).toFixed(2)}</td>
+              <td>${winnerName}</td>
+              <td>${loserName}</td>
+              <td style="color:#22c55e;">$${(r.fee_amount ?? 0).toFixed(2)}</td>
+              <td style="color:#22c55e;">$${(r.payout_amount ?? 0).toFixed(2)}</td>
+            </tr>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error('Exception loading operator dashboard:', e);
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Error: ' + e.message + '</td></tr>';
+        feesByGameEl.textContent = 'Error loading fees by game.';
+      }
+    }
+
     // Init - check admin access first
     async function init() {
       const hasAccess = await checkAdminAccess();
       if (hasAccess) {
         loadStats();
-        loadCheatLogs();
+        loadOperatorDashboard();
       }
     }
     init();
