@@ -1101,6 +1101,7 @@ function setCashEntryIndex(nextIndex) {
   if (typeof updateReactionCashUI === "function") updateReactionCashUI();
   if (typeof updateStackCashUI === "function") updateStackCashUI();
   if (typeof updateNightShiftCashUI === "function") updateNightShiftCashUI();
+  if (typeof updateRollingRushCashUI === "function") updateRollingRushCashUI();
 }
 
 function increaseCashEntry() {
@@ -1918,6 +1919,13 @@ const gameCards = [
     mode: "1v1 skill",
     comingSoon: false,
   },
+  {
+    id: "rolling-rush",
+    title: "Rolling Rush",
+    description: "Endless 3-lane dodge run. Weave and jump past obstacles — the run never ends, highest score wins.",
+    mode: "1v1 skill",
+    comingSoon: false,
+  },
 ];
 
 function renderHub() {
@@ -2055,6 +2063,8 @@ let speedDashSubscription = null;
 let germsState = null;
 let nightShiftState = null;
 let nightShiftMessageHandler = null;
+let rollingRushState = null;
+let rollingRushMessageHandler = null;
 let germsWagerMode = "cash"; // "coin" or "cash" (coin wagers hidden for now)
 
 function renderGameScreen() {
@@ -2132,6 +2142,8 @@ function renderGameScreen() {
     mountAvoidGerms();
   } else if (currentGameId === "night-shift") {
     mountNightShift();
+  } else if (currentGameId === "rolling-rush") {
+    mountRollingRush();
   } else {
     const root = document.getElementById("game-root");
     root.textContent = "Prototype coming soon.";
@@ -2704,6 +2716,254 @@ async function handleNightShiftGameOver(score, wave, kills, survivedSeconds) {
   }
 }
 
+function mountRollingRush() {
+  const root = document.getElementById("game-root");
+  root.innerHTML = `
+    <div class="germs-layout">
+      <div class="germs-top">
+        <div class="small-text">Score this run</div>
+        <div class="chicken-score" id="rolling-rush-score">0</div>
+
+        <button class="btn btn-secondary" id="rolling-rush-wager">Start Tournament</button>
+
+        <div id="rolling-rush-cash-controls">
+          <div class="bet-controls">
+            <button class="bet-btn" id="rolling-rush-cash-down">-</button>
+            <span class="bet-label" id="rolling-rush-cash-label">Entry: $1.00</span>
+            <button class="bet-btn" id="rolling-rush-cash-up">+</button>
+          </div>
+          <div class="small-text" id="rolling-rush-cash-payout" style="margin-top:0.15rem; min-height:1em;">Win: $1.70</div>
+        </div>
+      </div>
+
+      <div class="card" data-leaderboard-card="true" style="margin-top:0.5rem; margin-bottom:0.75rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
+          <h3 class="section-title" style="margin-bottom:0;">Top 5 - Rolling Rush</h3>
+          <button id="rolling-rush-leaderboard-refresh" class="btn btn-secondary" style="padding:0.2rem 0.6rem;font-size:0.7rem;">Refresh</button>
+        </div>
+        <div id="rolling-rush-leaderboard" class="small-text" style="margin-top:0.4rem; max-height:180px; overflow-y:auto;"></div>
+      </div>
+
+      <div class="rolling-rush-frame-wrap" style="position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:8px;overflow:hidden;">
+        <iframe
+          id="rolling-rush-iframe"
+          src="games/lost-ball/index.html"
+          style="width:100%;height:100%;border:0;display:block;"
+          allow="autoplay"
+        ></iframe>
+      </div>
+      <div class="small-text" style="margin-top:0.5rem;">Click Start Tournament for a fresh cash run, then click inside the game and use arrow keys / A-D to dodge left/right and Space/Up to jump. The run never ends — your score at the moment you crash is submitted.</div>
+      <div class="small-text" id="rolling-rush-wager-result" style="margin-top:0.25rem; min-height:1em;"></div>
+      <div id="rolling-rush-provably-fair" style="margin-top:0.5rem;display:none;"></div>
+    </div>
+  `;
+
+  const wagerBtn = document.getElementById("rolling-rush-wager");
+  if (wagerBtn) {
+    wagerBtn.addEventListener("click", handleRollingRushWagerClick);
+  }
+
+  const cashDown = document.getElementById("rolling-rush-cash-down");
+  const cashUp = document.getElementById("rolling-rush-cash-up");
+  if (cashDown) cashDown.addEventListener("click", () => decreaseCashEntry());
+  if (cashUp) cashUp.addEventListener("click", () => increaseCashEntry());
+
+  updateRollingRushCashUI();
+
+  loadLeaderboardForGame("rolling-rush", "rolling-rush-leaderboard");
+  const lbRefresh = document.getElementById("rolling-rush-leaderboard-refresh");
+  if (lbRefresh) {
+    lbRefresh.addEventListener("click", () => {
+      loadLeaderboardForGame("rolling-rush", "rolling-rush-leaderboard");
+    });
+  }
+
+  if (rollingRushMessageHandler) {
+    window.removeEventListener("message", rollingRushMessageHandler);
+  }
+  rollingRushMessageHandler = (event) => {
+    if (!event.data || event.data.type !== "lostball-crash") return;
+    const iframe = document.getElementById("rolling-rush-iframe");
+    if (!iframe || event.source !== iframe.contentWindow) return;
+
+    const score = Number(event.data.score) || 0;
+    const scoreEl = document.getElementById("rolling-rush-score");
+    if (scoreEl) scoreEl.textContent = String(score);
+
+    handleRollingRushGameOver(score);
+  };
+  window.addEventListener("message", rollingRushMessageHandler);
+
+  // Re-attach pending wager UI state if a render() happened mid-wager
+  if (rollingRushState && rollingRushState.inWager) {
+    if (wagerBtn) wagerBtn.style.display = "none";
+    if (rollingRushState.serverSeedHash) {
+      const pfEl = document.getElementById("rolling-rush-provably-fair");
+      if (pfEl) {
+        pfEl.style.display = "block";
+        pfEl.innerHTML = renderProvablyFairBadge(rollingRushState.serverSeedHash, true);
+        pfEl.onclick = () => window.showProvablyFairInfo(rollingRushState.serverSeedHash, rollingRushState.serverSeed, rollingRushState.matchId);
+      }
+    }
+  }
+}
+
+function updateRollingRushCashUI() {
+  const entry = getCurrentCashEntry();
+  const total = entry * 2;
+  const fee = total * 0.15;
+  const payout = total - fee;
+
+  const cashLabel = document.getElementById("rolling-rush-cash-label");
+  if (cashLabel) {
+    cashLabel.textContent = `Entry: $${entry.toFixed(2)}`;
+  }
+  const cashPayout = document.getElementById("rolling-rush-cash-payout");
+  if (cashPayout) {
+    cashPayout.textContent = `Win: $${payout.toFixed(2)}`;
+  }
+  const cashUp = document.getElementById("rolling-rush-cash-up");
+  const cashDown = document.getElementById("rolling-rush-cash-down");
+  if (cashUp) cashUp.disabled = currentCashEntryIndex >= CASH_ENTRY_AMOUNTS.length - 1;
+  if (cashDown) cashDown.disabled = currentCashEntryIndex <= 0;
+}
+
+async function handleRollingRushWagerClick() {
+  if (!supabaseClient || !currentUser) {
+    openAuthModal("login");
+    return;
+  }
+
+  const canPlay = await checkBanBeforeGame('rolling_rush');
+  if (!canPlay) return;
+
+  const btn = document.getElementById("rolling-rush-wager");
+  if (!btn) return;
+
+  const cashEntry = getCurrentCashEntry();
+
+  const now = Date.now();
+  const last = lastWagerAtByGame["rolling-rush"] || 0;
+  if (now - last < WAGER_COOLDOWN_MS) {
+    const remaining = Math.ceil((WAGER_COOLDOWN_MS - (now - last)) / 1000);
+    alert(`Please wait ${remaining}s before starting another Rolling Rush tournament.`);
+    return;
+  }
+
+  if (rollingRushState && rollingRushState.inWager) {
+    btn.style.display = "none";
+    alert("You already have an active tournament run. Finish it before starting another.");
+    return;
+  }
+
+  if ((currentUser.cash_balance ?? 0) < cashEntry) {
+    alert(`Not enough cash for a $${cashEntry.toFixed(2)} entry. Please deposit more.`);
+    return;
+  }
+
+  btn.disabled = true;
+  btn.style.display = "none";
+
+  try {
+    const match = await createCashMatchForGame("rolling-rush", cashEntry);
+    if (!match) {
+      throw new Error("Could not create cash match.");
+    }
+    const slot = match.player2_id === currentUser.id ? "player2" : "player1";
+
+    lastWagerAtByGame["rolling-rush"] = now;
+
+    rollingRushState = rollingRushState || {};
+    rollingRushState.inWager = true;
+    rollingRushState.matchId = match.id;
+    rollingRushState.playerSlot = slot;
+    rollingRushState.gameOverReported = false;
+    rollingRushState.cashEntry = cashEntry;
+    rollingRushState.provablyFairId = match.provablyFairId || null;
+    rollingRushState.serverSeedHash = match.serverSeedHash || null;
+    rollingRushState.serverSeed = match.serverSeed || null;
+
+    await loadCurrentUser();
+
+    // Force a fresh run for this wager by fully reloading the iframe
+    // (the underlying game loop never truly stops on its own).
+    const iframe = document.getElementById("rolling-rush-iframe");
+    if (iframe) {
+      iframe.src = iframe.src;
+    }
+
+    const scoreEl = document.getElementById("rolling-rush-score");
+    if (scoreEl) scoreEl.textContent = "0";
+
+    const resultEl = document.getElementById("rolling-rush-wager-result");
+    if (resultEl) {
+      resultEl.textContent = `Match ${slot === "player2" ? "found" : "created"} ($${cashEntry.toFixed(2)} cash). Dodge as long as you can — your score at the first crash is submitted.`;
+    }
+
+    const pfEl = document.getElementById("rolling-rush-provably-fair");
+    if (pfEl && rollingRushState.serverSeedHash) {
+      pfEl.style.display = "block";
+      pfEl.innerHTML = renderProvablyFairBadge(rollingRushState.serverSeedHash, true);
+      pfEl.onclick = () => window.showProvablyFairInfo(rollingRushState.serverSeedHash, null, rollingRushState.matchId);
+    }
+  } catch (err) {
+    console.error(err);
+    alert(err.message || "Failed to start wager match.");
+  } finally {
+    if (btn && !(rollingRushState && rollingRushState.inWager)) {
+      btn.disabled = false;
+    }
+  }
+}
+
+async function handleRollingRushGameOver(score) {
+  if (
+    !supabaseClient ||
+    !currentUser ||
+    !rollingRushState?.inWager ||
+    !rollingRushState.matchId ||
+    !rollingRushState.playerSlot ||
+    rollingRushState.gameOverReported
+  ) {
+    return;
+  }
+
+  rollingRushState.gameOverReported = true;
+
+  const cashEntry = rollingRushState.cashEntry;
+
+  try {
+    await submitMatchScore(rollingRushState.matchId, rollingRushState.playerSlot, score);
+    const resultEl = document.getElementById("rolling-rush-wager-result");
+    if (resultEl) {
+      resultEl.textContent = `$${cashEntry.toFixed(2)} cash run finished. Score: ${score}. Awaiting other player...`;
+    }
+
+    if (rollingRushState.provablyFairId) {
+      await ProvablyFair.revealGame(rollingRushState.provablyFairId);
+      const pfEl = document.getElementById("rolling-rush-provably-fair");
+      if (pfEl && rollingRushState.serverSeedHash && rollingRushState.serverSeed) {
+        pfEl.innerHTML = renderProvablyFairBadge(rollingRushState.serverSeedHash, true);
+        pfEl.onclick = () => window.showProvablyFairInfo(rollingRushState.serverSeedHash, rollingRushState.serverSeed, rollingRushState.matchId);
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    alert(err.message || "Failed to submit wager score.");
+  } finally {
+    rollingRushState.inWager = false;
+    rollingRushState.matchId = null;
+    rollingRushState.playerSlot = null;
+    rollingRushState.cashEntry = null;
+
+    const btn = document.getElementById("rolling-rush-wager");
+    if (btn) {
+      btn.disabled = false;
+      btn.style.display = "";
+    }
+  }
+}
+
 function stopAllGames() {
   if (reactionTimeoutId) {
     clearTimeout(reactionTimeoutId);
@@ -2749,6 +3009,12 @@ function stopAllGames() {
     nightShiftMessageHandler = null;
   }
   nightShiftState = null;
+
+  if (rollingRushMessageHandler) {
+    window.removeEventListener("message", rollingRushMessageHandler);
+    rollingRushMessageHandler = null;
+  }
+  rollingRushState = null;
 }
 
 // --- Reaction Duel (single-player prototype) ---
@@ -5495,6 +5761,9 @@ async function submitMatchScore(matchId, playerSlot, score) {
     }
     if (gameId === "night-shift") {
       return document.getElementById("night-shift-wager-result");
+    }
+    if (gameId === "rolling-rush") {
+      return document.getElementById("rolling-rush-wager-result");
     }
     return null;
   }
