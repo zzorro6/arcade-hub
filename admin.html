@@ -1744,8 +1744,9 @@
           }
         }
 
-        // Stats (successful deposits only, i.e. status not explicitly 'failed'/'pending' if present)
-        const successful = data.filter(d => !d.status || d.status === 'completed' || d.status === 'paid' || d.status === 'succeeded');
+        // Stats (successful deposits only - exclude explicitly failed/pending/cancelled)
+        const FAILED_STATUSES = ['failed', 'pending', 'cancelled', 'canceled', 'expired'];
+        const successful = data.filter(d => !d.status || !FAILED_STATUSES.includes(d.status));
         const totalAmount = successful.reduce((sum, d) => sum + Number(d.cash_amount ?? 0), 0);
 
         document.getElementById('dep-stat-total').textContent = `$${totalAmount.toFixed(2)}`;
@@ -1767,7 +1768,7 @@
             lastAt: null,
             methods: new Set(),
           };
-          const isSuccess = !d.status || d.status === 'completed' || d.status === 'paid' || d.status === 'succeeded';
+          const isSuccess = !d.status || !FAILED_STATUSES.includes(d.status);
           if (isSuccess) {
             entry.total += Number(d.cash_amount ?? 0);
             entry.count += 1;
@@ -1872,8 +1873,9 @@
         return;
       }
 
+      const FAILED_STATUSES = ['failed', 'pending', 'cancelled', 'canceled', 'expired'];
       const total = data
-        .filter(d => !d.status || d.status === 'completed' || d.status === 'paid' || d.status === 'succeeded')
+        .filter(d => !d.status || !FAILED_STATUSES.includes(d.status))
         .reduce((sum, d) => sum + Number(d.cash_amount ?? 0), 0);
 
       bodyEl.innerHTML = `
