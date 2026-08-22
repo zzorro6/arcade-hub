@@ -23,6 +23,11 @@
   padding: 0;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   font-family: var(--font);
   background:
@@ -32,7 +37,14 @@ body {
     var(--bg);
   color: var(--text);
   min-height: 100vh;
+  min-height: 100dvh;
   letter-spacing: -0.01em;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+img, canvas, iframe, svg {
+  max-width: 100%;
 }
 
 #app {
@@ -521,6 +533,8 @@ body {
   border-radius: 0.75rem;
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: #020617;
+  max-width: 100%;
+  height: auto;
 }
 
 .pattern-layout {
@@ -615,6 +629,8 @@ body {
   border-radius: 0.75rem;
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: #020617;
+  max-width: 100%;
+  height: auto;
 }
 
 .chicken-layout {
@@ -642,6 +658,8 @@ body {
   border-radius: 0.75rem;
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: #020617;
+  max-width: 100%;
+  height: auto;
 }
 
 .aim-layout {
@@ -916,16 +934,30 @@ body {
 @media (max-width: 640px) {
   #app {
     padding: 1rem;
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .logo {
+    font-size: 1.3rem;
   }
 
   .topbar {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.75rem;
+    padding: 0.7rem 1rem;
   }
 
   .auth-forms {
     flex-wrap: wrap;
+  }
+
+  .auth-forms input {
+    min-width: 0;
+    flex: 1 1 140px;
   }
 
   .auth-layout {
@@ -940,8 +972,31 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.85rem;
+  }
+
   .game-shell {
     padding: 1rem;
+  }
+
+  .game-shell-header {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .flappy-top,
+  .stack-top,
+  .chicken-top,
+  .germs-top,
+  .aim-top {
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    padding: 0.6rem 1.1rem;
+    font-size: 0.88rem;
   }
 
   .wager-row {
@@ -955,12 +1010,26 @@ body {
   }
 }
 
+@media (max-width: 400px) {
+  .logo {
+    font-size: 1.1rem;
+  }
+
+  .btn {
+    padding: 0.55rem 0.9rem;
+    font-size: 0.82rem;
+  }
+}
+
 /* Premium utilities */
 
 .toast {
   position: fixed;
-  top: 1.25rem;
+  top: max(1.25rem, env(safe-area-inset-top));
   right: 1.25rem;
+  left: 1.25rem;
+  max-width: 360px;
+  margin-left: auto;
   padding: 0.85rem 1.25rem;
   border-radius: 0.9rem;
   background: rgba(12, 18, 34, 0.92);
@@ -969,7 +1038,7 @@ body {
   backdrop-filter: blur(12px);
   z-index: 100;
   font-size: 0.9rem;
-  transform: translateX(120%);
+  transform: translateX(150%);
   transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
