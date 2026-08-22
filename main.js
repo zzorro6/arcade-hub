@@ -1100,6 +1100,7 @@ function setCashEntryIndex(nextIndex) {
   if (typeof updateChickenCashUI === "function") updateChickenCashUI();
   if (typeof updateReactionCashUI === "function") updateReactionCashUI();
   if (typeof updateStackCashUI === "function") updateStackCashUI();
+  if (typeof updateNightShiftCashUI === "function") updateNightShiftCashUI();
 }
 
 function increaseCashEntry() {
@@ -1910,6 +1911,13 @@ const gameCards = [
     mode: "1v1 skill",
     comingSoon: false,
   },
+  {
+    id: "night-shift",
+    title: "Night Shift",
+    description: "First-person zombie survival. Endless escalating waves — no one finishes, highest wave/kills wins.",
+    mode: "1v1 skill",
+    comingSoon: false,
+  },
 ];
 
 function renderHub() {
@@ -2045,6 +2053,8 @@ let speedDashAnimId = null;
 let speedDashSubscription = null;
 
 let germsState = null;
+let nightShiftState = null;
+let nightShiftMessageHandler = null;
 let germsWagerMode = "cash"; // "coin" or "cash" (coin wagers hidden for now)
 
 function renderGameScreen() {
@@ -2120,6 +2130,8 @@ function renderGameScreen() {
     mountSpeedDash();
   } else if (currentGameId === "avoid-germs") {
     mountAvoidGerms();
+  } else if (currentGameId === "night-shift") {
+    mountNightShift();
   } else {
     const root = document.getElementById("game-root");
     root.textContent = "Prototype coming soon.";
@@ -2440,6 +2452,258 @@ async function handleGermsGameOver(score) {
   }
 }
 
+function mountNightShift() {
+  const root = document.getElementById("game-root");
+  root.innerHTML = `
+    <div class="germs-layout">
+      <div class="germs-top">
+        <div class="small-text">Best score this run: wave reached + zombies slain</div>
+        <div class="chicken-score" id="night-shift-score">Wave 0 · 0 kills</div>
+
+        <button class="btn btn-secondary" id="night-shift-wager">Start Tournament</button>
+
+        <div id="night-shift-cash-controls">
+          <div class="bet-controls">
+            <button class="bet-btn" id="night-shift-cash-down">-</button>
+            <span class="bet-label" id="night-shift-cash-label">Entry: $1.00</span>
+            <button class="bet-btn" id="night-shift-cash-up">+</button>
+          </div>
+          <div class="small-text" id="night-shift-cash-payout" style="margin-top:0.15rem; min-height:1em;">Win: $1.70</div>
+        </div>
+      </div>
+
+      <div class="card" data-leaderboard-card="true" style="margin-top:0.5rem; margin-bottom:0.75rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
+          <h3 class="section-title" style="margin-bottom:0;">Top 5 - Night Shift</h3>
+          <button id="night-shift-leaderboard-refresh" class="btn btn-secondary" style="padding:0.2rem 0.6rem;font-size:0.7rem;">Refresh</button>
+        </div>
+        <div id="night-shift-leaderboard" class="small-text" style="margin-top:0.4rem; max-height:180px; overflow-y:auto;"></div>
+      </div>
+
+      <div class="night-shift-frame-wrap" style="position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:8px;overflow:hidden;">
+        <iframe
+          id="night-shift-iframe"
+          src="games/night-shift/night-shift.html"
+          style="width:100%;height:100%;border:0;display:block;"
+          allow="autoplay"
+        ></iframe>
+      </div>
+      <div class="small-text" style="margin-top:0.5rem;">Click Start Tournament to enter a cash wager, then click inside the game and press "BEGIN THE SHIFT" to play. Survive as many endless zombie waves as you can — the game never ends until you fall, so your final wave and kill count are submitted as your score.</div>
+      <div class="small-text" id="night-shift-wager-result" style="margin-top:0.25rem; min-height:1em;"></div>
+      <div id="night-shift-provably-fair" style="margin-top:0.5rem;display:none;"></div>
+    </div>
+  `;
+
+  const wagerBtn = document.getElementById("night-shift-wager");
+  if (wagerBtn) {
+    wagerBtn.addEventListener("click", handleNightShiftWagerClick);
+  }
+
+  const cashDown = document.getElementById("night-shift-cash-down");
+  const cashUp = document.getElementById("night-shift-cash-up");
+  if (cashDown) cashDown.addEventListener("click", () => decreaseCashEntry());
+  if (cashUp) cashUp.addEventListener("click", () => increaseCashEntry());
+
+  updateNightShiftCashUI();
+
+  loadLeaderboardForGame("night-shift", "night-shift-leaderboard");
+  const lbRefresh = document.getElementById("night-shift-leaderboard-refresh");
+  if (lbRefresh) {
+    lbRefresh.addEventListener("click", () => {
+      loadLeaderboardForGame("night-shift", "night-shift-leaderboard");
+    });
+  }
+
+  if (nightShiftMessageHandler) {
+    window.removeEventListener("message", nightShiftMessageHandler);
+  }
+  nightShiftMessageHandler = (event) => {
+    if (!event.data || event.data.type !== "nightshift-gameover") return;
+    const iframe = document.getElementById("night-shift-iframe");
+    if (!iframe || event.source !== iframe.contentWindow) return;
+
+    const wave = Number(event.data.wave) || 0;
+    const kills = Number(event.data.kills) || 0;
+    const survivedSeconds = Number(event.data.survivedSeconds) || 0;
+    const scoreEl = document.getElementById("night-shift-score");
+    if (scoreEl) scoreEl.textContent = `Wave ${wave} · ${kills} kills`;
+
+    // Score weights wave far above kills so reaching a higher wave always
+    // beats more kills at a lower wave (waves double in size each time).
+    const score = wave * 100000 + kills;
+    handleNightShiftGameOver(score, wave, kills, survivedSeconds);
+  };
+  window.addEventListener("message", nightShiftMessageHandler);
+
+  // Re-attach pending wager UI state if a render() happened mid-wager
+  if (nightShiftState && nightShiftState.inWager) {
+    if (wagerBtn) wagerBtn.style.display = "none";
+    if (nightShiftState.serverSeedHash) {
+      const pfEl = document.getElementById("night-shift-provably-fair");
+      if (pfEl) {
+        pfEl.style.display = "block";
+        pfEl.innerHTML = renderProvablyFairBadge(nightShiftState.serverSeedHash, true);
+        pfEl.onclick = () => window.showProvablyFairInfo(nightShiftState.serverSeedHash, nightShiftState.serverSeed, nightShiftState.matchId);
+      }
+    }
+  }
+}
+
+function updateNightShiftCashUI() {
+  const entry = getCurrentCashEntry();
+  const total = entry * 2;
+  const fee = total * 0.15;
+  const payout = total - fee;
+
+  const cashLabel = document.getElementById("night-shift-cash-label");
+  if (cashLabel) {
+    cashLabel.textContent = `Entry: $${entry.toFixed(2)}`;
+  }
+  const cashPayout = document.getElementById("night-shift-cash-payout");
+  if (cashPayout) {
+    cashPayout.textContent = `Win: $${payout.toFixed(2)}`;
+  }
+  const cashUp = document.getElementById("night-shift-cash-up");
+  const cashDown = document.getElementById("night-shift-cash-down");
+  if (cashUp) cashUp.disabled = currentCashEntryIndex >= CASH_ENTRY_AMOUNTS.length - 1;
+  if (cashDown) cashDown.disabled = currentCashEntryIndex <= 0;
+}
+
+async function handleNightShiftWagerClick() {
+  if (!supabaseClient || !currentUser) {
+    openAuthModal("login");
+    return;
+  }
+
+  const canPlay = await checkBanBeforeGame('night_shift');
+  if (!canPlay) return;
+
+  const btn = document.getElementById("night-shift-wager");
+  if (!btn) return;
+
+  const cashEntry = getCurrentCashEntry();
+
+  const now = Date.now();
+  const last = lastWagerAtByGame["night-shift"] || 0;
+  if (now - last < WAGER_COOLDOWN_MS) {
+    const remaining = Math.ceil((WAGER_COOLDOWN_MS - (now - last)) / 1000);
+    alert(`Please wait ${remaining}s before starting another Night Shift tournament.`);
+    return;
+  }
+
+  if (nightShiftState && nightShiftState.inWager) {
+    btn.style.display = "none";
+    alert("You already have an active tournament run. Finish it before starting another.");
+    return;
+  }
+
+  if ((currentUser.cash_balance ?? 0) < cashEntry) {
+    alert(`Not enough cash for a $${cashEntry.toFixed(2)} entry. Please deposit more.`);
+    return;
+  }
+
+  btn.disabled = true;
+  btn.style.display = "none";
+
+  try {
+    const match = await createCashMatchForGame("night-shift", cashEntry);
+    if (!match) {
+      throw new Error("Could not create cash match.");
+    }
+    const slot = match.player2_id === currentUser.id ? "player2" : "player1";
+
+    lastWagerAtByGame["night-shift"] = now;
+
+    nightShiftState = nightShiftState || {};
+    nightShiftState.inWager = true;
+    nightShiftState.matchId = match.id;
+    nightShiftState.playerSlot = slot;
+    nightShiftState.gameOverReported = false;
+    nightShiftState.cashEntry = cashEntry;
+    nightShiftState.provablyFairId = match.provablyFairId || null;
+    nightShiftState.serverSeedHash = match.serverSeedHash || null;
+    nightShiftState.serverSeed = match.serverSeed || null;
+
+    await loadCurrentUser();
+
+    // Force a fresh run for this wager (skips the start screen, resets score to 0)
+    const iframe = document.getElementById("night-shift-iframe");
+    if (iframe && iframe.contentWindow) {
+      iframe.contentWindow.postMessage({ type: "nightshift-start-wager" }, "*");
+    }
+
+    const scoreEl = document.getElementById("night-shift-score");
+    if (scoreEl) scoreEl.textContent = "Wave 0 · 0 kills";
+
+    const resultEl = document.getElementById("night-shift-wager-result");
+    if (resultEl) {
+      resultEl.textContent = `Match ${slot === "player2" ? "found" : "created"} ($${cashEntry.toFixed(2)} cash). Survive as long as you can — your final wave/kills are your score.`;
+    }
+
+    const pfEl = document.getElementById("night-shift-provably-fair");
+    if (pfEl && nightShiftState.serverSeedHash) {
+      pfEl.style.display = "block";
+      pfEl.innerHTML = renderProvablyFairBadge(nightShiftState.serverSeedHash, true);
+      pfEl.onclick = () => window.showProvablyFairInfo(nightShiftState.serverSeedHash, null, nightShiftState.matchId);
+    }
+  } catch (err) {
+    console.error(err);
+    alert(err.message || "Failed to start wager match.");
+  } finally {
+    if (btn && !(nightShiftState && nightShiftState.inWager)) {
+      btn.disabled = false;
+    }
+  }
+}
+
+async function handleNightShiftGameOver(score, wave, kills, survivedSeconds) {
+  if (
+    !supabaseClient ||
+    !currentUser ||
+    !nightShiftState?.inWager ||
+    !nightShiftState.matchId ||
+    !nightShiftState.playerSlot ||
+    nightShiftState.gameOverReported
+  ) {
+    return;
+  }
+
+  nightShiftState.gameOverReported = true;
+
+  const cashEntry = nightShiftState.cashEntry;
+
+  try {
+    await submitMatchScore(nightShiftState.matchId, nightShiftState.playerSlot, score);
+    const resultEl = document.getElementById("night-shift-wager-result");
+    if (resultEl) {
+      resultEl.textContent = `$${cashEntry.toFixed(2)} cash run finished. Wave ${wave}, ${kills} kills. Awaiting other player...`;
+    }
+
+    if (nightShiftState.provablyFairId) {
+      await ProvablyFair.revealGame(nightShiftState.provablyFairId);
+      const pfEl = document.getElementById("night-shift-provably-fair");
+      if (pfEl && nightShiftState.serverSeedHash && nightShiftState.serverSeed) {
+        pfEl.innerHTML = renderProvablyFairBadge(nightShiftState.serverSeedHash, true);
+        pfEl.onclick = () => window.showProvablyFairInfo(nightShiftState.serverSeedHash, nightShiftState.serverSeed, nightShiftState.matchId);
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    alert(err.message || "Failed to submit wager score.");
+  } finally {
+    nightShiftState.inWager = false;
+    nightShiftState.matchId = null;
+    nightShiftState.playerSlot = null;
+    nightShiftState.cashEntry = null;
+
+    const btn = document.getElementById("night-shift-wager");
+    if (btn) {
+      btn.disabled = false;
+      btn.style.display = "";
+    }
+  }
+}
+
 function stopAllGames() {
   if (reactionTimeoutId) {
     clearTimeout(reactionTimeoutId);
@@ -2479,6 +2743,12 @@ function stopAllGames() {
     window.AvoidGerms.destroy();
   }
   germsState = null;
+
+  if (nightShiftMessageHandler) {
+    window.removeEventListener("message", nightShiftMessageHandler);
+    nightShiftMessageHandler = null;
+  }
+  nightShiftState = null;
 }
 
 // --- Reaction Duel (single-player prototype) ---
@@ -5222,6 +5492,9 @@ async function submitMatchScore(matchId, playerSlot, score) {
     }
     if (gameId === "avoid-germs") {
       return document.getElementById("germs-wager-result");
+    }
+    if (gameId === "night-shift") {
+      return document.getElementById("night-shift-wager-result");
     }
     return null;
   }
