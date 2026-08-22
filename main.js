@@ -2752,7 +2752,7 @@ function mountRollingRush() {
           allow="autoplay"
         ></iframe>
       </div>
-      <div class="small-text" style="margin-top:0.5rem;">Click Start Tournament for a fresh cash run, then click inside the game and use arrow keys / A-D to dodge left/right and Space/Up to jump. The run never ends — your score at the moment you crash is submitted.</div>
+      <div class="small-text" style="margin-top:0.5rem;">Click Start Tournament for a fresh cash run, then click inside the game to begin (5s countdown), and use arrow keys / A-D to dodge left/right and Space/Up to jump. Crashing ends the run — your final score is shown and submitted.</div>
       <div class="small-text" id="rolling-rush-wager-result" style="margin-top:0.25rem; min-height:1em;"></div>
       <div id="rolling-rush-provably-fair" style="margin-top:0.5rem;display:none;"></div>
     </div>

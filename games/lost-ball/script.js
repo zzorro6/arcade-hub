@@ -47,6 +47,7 @@ var highScore;
 var paused;
 var gameStarted;
 var countdownInterval;
+var crashed;
 
 init();
 
@@ -61,6 +62,7 @@ function createScene() {
   highScore = localStorage.getItem("highScore") || 0;
   paused = true;
   gameStarted = false;
+  crashed = false;
   treesInPath = [];
   treesPool = [];
   clock = new THREE.Clock();
@@ -191,7 +193,6 @@ function createTreesPool() {
 
 function handleKeyDown(keyEvent) {
   if (!gameStarted) {
-    triggerStart();
     return;
   }
   var validMove = true;
@@ -230,7 +231,6 @@ function handleKeyDown(keyEvent) {
 
 function handleSwipe(direction) {
   if (!gameStarted) {
-    triggerStart();
     return;
   }
   var validMove = true;
@@ -487,42 +487,46 @@ function tightenTree(vertices, sides, currentTier) {
 
 function update() {
   if (!paused) {
-    // Normalize all per-frame movement to real elapsed time (dt), not just
-    // "one tick of requestAnimationFrame". Without this, the world/ball
-    // rotation speed (previously a fixed amount added every frame) runs
-    // proportionally to whatever frame rate the browser happens to hit —
-    // a smaller, cheaper-to-render canvas (e.g. non-fullscreen) can render
-    // at a much higher FPS than a large fullscreen canvas, making the game
-    // feel far too fast outside of fullscreen. Scaling by dt*60 keeps the
-    // original feel at a 60fps baseline while staying consistent at any
-    // frame rate.
-    var dt = Math.min(clock.getDelta(), 0.1);
-    var frameScale = dt * 60;
-    rollingGroundSphere.rotation.x += rollingSpeed * frameScale;
-    ball.rotation.x -= ballRollingSpeed * frameScale;
-    if (ball.position.y <= heroBaseY) {
-      jumping = false;
-      bounceValue = Math.random() * 0.04 + 0.005;
+    if (!crashed) {
+      // Normalize all per-frame movement to real elapsed time (dt), not
+      // just "one tick of requestAnimationFrame". Without this, the
+      // world/ball rotation speed (previously a fixed amount added every
+      // frame) runs proportionally to whatever frame rate the browser
+      // happens to hit — a smaller, cheaper-to-render canvas (e.g.
+      // non-fullscreen) can render at a much higher FPS than a large
+      // fullscreen canvas, making the game feel far too fast outside of
+      // fullscreen. Scaling by dt*60 keeps the original feel at a 60fps
+      // baseline while staying consistent at any frame rate.
+      var dt = Math.min(clock.getDelta(), 0.1);
+      var frameScale = dt * 60;
+      rollingGroundSphere.rotation.x += rollingSpeed * frameScale;
+      ball.rotation.x -= ballRollingSpeed * frameScale;
+      if (ball.position.y <= heroBaseY) {
+        jumping = false;
+        bounceValue = Math.random() * 0.04 + 0.005;
+      }
+      ball.position.y += bounceValue * frameScale;
+      ball.position.x = THREE.Math.lerp(
+        ball.position.x,
+        currentLane,
+        4 * dt
+      ); 
+      bounceValue -= gravity * frameScale;
+      if (clock.getElapsedTime() > treeReleaseInterval) {
+        clock.start();
+        addPathTree();
+
+        score += 1;
+        scoreText.innerHTML = `Score: ${score.toString()}`;
+      }
+
+      doTreeLogic();
+      doDifficultyLogic();
+    } else {
+      clock.getDelta(); // keep the clock ticking so it doesn't jump on resume
     }
-    ball.position.y += bounceValue * frameScale;
-    ball.position.x = THREE.Math.lerp(
-      ball.position.x,
-      currentLane,
-      4 * dt
-    ); 
-    bounceValue -= gravity * frameScale;
-    if (clock.getElapsedTime() > treeReleaseInterval) {
-      clock.start();
-      addPathTree();
-  
-      score += 1;
-      scoreText.innerHTML = `Score: ${score.toString()}`;
-    }
-  
-    doTreeLogic();
     doExplosionLogic();
     render();
-    doDifficultyLogic();
   }
   requestAnimationFrame(update);
 }
@@ -537,18 +541,20 @@ function doTreeLogic() {
     if (treePos.z > 6 && oneTree.visible) {
       treesToRemove.push(oneTree);
     } else {
-      if (treePos.distanceTo(ball.position) <= 0.6) {
+      if (treePos.distanceTo(ball.position) <= 0.6 && !crashed) {
         if (score > highScore) {
           highText.innerHTML = `High Score: ${score.toString()}`
           highScore = score;
           localStorage.setItem("highScore", highScore)
           console.log(localStorage)
         }
+        var finalScore = score;
         try {
-          window.parent.postMessage({ type: "lostball-crash", score: score }, "*");
+          window.parent.postMessage({ type: "lostball-crash", score: finalScore }, "*");
         } catch (e) { /* not embedded, ignore */ }
-        score = 0;
+        crashed = true;
         explode();
+        showGameOver(finalScore);
       }
     }
   });
@@ -736,4 +742,44 @@ function triggerStart() {
 var startPromptEl = document.getElementById('startPrompt');
 if (startPromptEl) {
   startPromptEl.addEventListener('click', triggerStart);
+}
+
+function showGameOver(finalScore) {
+  var overlay = document.getElementById('gameOverOverlay');
+  var scoreEl = document.getElementById('gameOverScoreText');
+  if (scoreEl) scoreEl.textContent = 'Score submitted: ' + finalScore;
+  if (overlay) overlay.classList.remove('hidden');
+}
+
+function resetRun() {
+  treesInPath.forEach(function (tree) {
+    tree.visible = false;
+    treesPool.push(tree);
+  });
+  treesInPath = [];
+
+  score = 0;
+  scoreText.innerHTML = 'Score: 0';
+  rollingSpeed = 0.008;
+  treeReleaseInterval = 0.5;
+  ballRollingSpeed = (rollingSpeed * worldRadius) / heroRadius / 5;
+
+  currentLane = middleLane;
+  ball.position.x = middleLane;
+  ball.position.y = heroBaseY;
+  bounceValue = 0.1;
+  jumping = false;
+
+  crashed = false;
+  gameStarted = false;
+  paused = true;
+}
+
+var gameOverOverlayEl = document.getElementById('gameOverOverlay');
+if (gameOverOverlayEl) {
+  gameOverOverlayEl.addEventListener('click', function () {
+    gameOverOverlayEl.classList.add('hidden');
+    resetRun();
+    triggerStart();
+  });
 }
