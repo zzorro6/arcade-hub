@@ -872,7 +872,9 @@ function init() {
 function updateUI() {
     document.getElementById('score').textContent = G.score;
     document.getElementById('bestScore').textContent = bestScore;
-    const pct = Math.min(100, Math.floor((G.distance / C.levelLength) * 100));
+    // The run never actually ends — this bar just loops every lap as a sense of pace.
+    // It is purely cosmetic; death from a collision is the only way a run stops.
+    const pct = Math.floor((G.distance % C.levelLength) / C.levelLength * 100);
     document.getElementById('progressFill').style.width = pct + '%';
 }
 
@@ -1047,7 +1049,7 @@ function showGameOver() {
     G.playing = false;
     cancelAnimationFrame(animId);
     document.getElementById('finalScore').textContent = G.score;
-    document.getElementById('finalDist').textContent = Math.min(100, Math.floor((G.distance / C.levelLength) * 100));
+    document.getElementById('finalDist').textContent = Math.floor(G.distance / C.levelLength) + 1;
     document.getElementById('attemptNum').textContent = attempt;
     document.getElementById('gameOver').style.display = 'block';
     document.getElementById('restartBtn').style.display = 'inline-block';

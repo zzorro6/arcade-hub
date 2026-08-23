@@ -1112,6 +1112,28 @@ img, canvas, iframe, svg {
   height: auto;
 }
 
+.geometry-rush-frame-wrap {
+  position: relative;
+  width: 100%;
+  height: 640px;
+  background: #0a0a1a;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.geometry-rush-frame-wrap iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+@media (max-width: 600px) {
+  .geometry-rush-frame-wrap {
+    height: 500px;
+  }
+}
+
 .game-card .game-card-image {
   transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
 }

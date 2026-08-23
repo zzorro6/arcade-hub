@@ -3004,11 +3004,10 @@ function mountGeometryRush() {
         <div id="geometry-rush-leaderboard" class="small-text" style="margin-top:0.4rem; max-height:180px; overflow-y:auto;"></div>
       </div>
 
-      <div class="geometry-rush-frame-wrap" style="position:relative;width:100%;aspect-ratio:16/9;background:#0a0a1a;border-radius:8px;overflow:hidden;">
+      <div class="geometry-rush-frame-wrap">
         <iframe
           id="geometry-rush-iframe"
           src="games/geometry-rush/index.html"
-          style="width:100%;height:100%;border:0;display:block;"
           allow="autoplay"
         ></iframe>
       </div>
