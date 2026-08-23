@@ -18,6 +18,39 @@ const C = {
     maxParticles: 120,
 };
 
+// ── Seeded RNG (for fair 1v1 matches) ───────────────────
+// If the arcade hub embeds this game with ?seed=<matchId>, both players in a
+// wager get the exact same obstacle/orb sequence, so the outcome is decided
+// purely by skill, not who happened to get an easier random layout.
+// Practice mode (no seed param) stays fully random, same as before.
+function cyrb53(str) {
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (let i = 0; i < str.length; i++) {
+        const ch = str.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+}
+
+function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+const seedParam = new URLSearchParams(window.location.search).get('seed');
+const matchSeed = seedParam ? Number(cyrb53(seedParam) % 4294967296) : (Date.now() >>> 0);
+// rng() drives all gameplay-affecting randomness (obstacle/orb placement).
+// Cosmetic effects (particles, stars, screen shake) keep using Math.random().
+const rng = mulberry32(matchSeed);
+
 // ── State ───────────────────────────────────────────────
 let G = {};
 let player, cam;
@@ -496,7 +529,7 @@ class Obstacle {
 class Orb {
     constructor(x, y) {
         this.x = x;
-        this.y = y || (canvas.height - C.groundH - 80 - Math.random() * 60);
+        this.y = y || (canvas.height - C.groundH - 80 - rng() * 60);
         this.size = 10;
         this.rot = 0;
         this.pulse = Math.random() * Math.PI * 2;
@@ -737,15 +770,15 @@ function spawnPattern(baseX) {
     const difficulty = Math.min(G.score / 30, 1); // 0 to 1
     // More complex patterns at higher difficulty
     const maxIdx = Math.floor(2 + difficulty * (PATTERNS.length - 2));
-    const pattern = PATTERNS[Math.floor(Math.random() * maxIdx)];
+    const pattern = PATTERNS[Math.floor(rng() * maxIdx)];
     pattern.forEach(([type, offset]) => {
         obstacles.push(new Obstacle(baseX + offset, type));
     });
 }
 
 function spawnOrb(baseX) {
-    if (Math.random() < 0.35) {
-        const gap = 40 + Math.random() * 80;
+    if (rng() < 0.35) {
+        const gap = 40 + rng() * 80;
         orbs.push(new Orb(baseX + gap));
     }
 }

@@ -3143,10 +3143,12 @@ async function handleGeometryRushWagerClick() {
 
     await loadCurrentUser();
 
-    // Force a fresh run for this wager (clears any practice-mode state).
+    // Force a fresh run for this wager (clears any practice-mode state) and
+    // seed the game with the shared match id so both players in this wager
+    // face the exact same obstacle/orb sequence — pure skill decides the winner.
     const iframe = document.getElementById("geometry-rush-iframe");
     if (iframe) {
-      iframe.src = iframe.src;
+      iframe.src = `games/geometry-rush/index.html?seed=${encodeURIComponent(match.id)}`;
     }
 
     const scoreEl = document.getElementById("geometry-rush-score");
