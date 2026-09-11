@@ -1228,8 +1228,9 @@ img, canvas, iframe, svg {
   }
 
   .avoid-germs-container {
-    min-height: 320px;
-    aspect-ratio: 4 / 3;
+    min-height: 300px;
+    height: 50vh;
+    max-height: 70vh;
   }
 
   /* Modal sizing on small screens */
@@ -1288,7 +1289,9 @@ img, canvas, iframe, svg {
   }
 
   .avoid-germs-container {
-    min-height: 280px;
+    min-height: 260px;
+    height: 48vh;
+    max-height: 65vh;
   }
 
   .wagers-filter-group .btn {
@@ -1391,8 +1394,9 @@ img, canvas, iframe, svg {
   justify-content: center;
   align-items: center;
   width: 100%;
-  min-height: 360px;
-  aspect-ratio: 4 / 3;
+  height: 52vh;
+  min-height: 280px;
+  max-height: 72vh;
   overflow: hidden;
   border-radius: 0.75rem;
   border: 1px solid var(--border);
@@ -1402,8 +1406,16 @@ img, canvas, iframe, svg {
 .avoid-germs-container canvas {
   max-width: 100%;
   max-height: 100%;
-  height: auto;
-  width: auto;
+  margin: auto;
+}
+
+/* Landscape phones: give iframe games a bit more height */
+@media (orientation: landscape) and (max-height: 500px) {
+  .avoid-germs-container,
+  .rolling-rush-frame-wrap {
+    height: 80vh;
+    max-height: 85vh;
+  }
 }
 
 .geometry-rush-frame-wrap,

@@ -563,8 +563,22 @@
         autoCenter: Phaser.Scale.CENTER_BOTH,
         width: 800,
         height: 600,
+        max: {
+          width: 900,
+          height: 675,
+        },
       },
     });
+
+    // Force Phaser to recalculate its canvas size when the phone rotates or
+    // the container resizes so the game doesn't stay zoomed/cropped.
+    const resizeHandler = () => {
+      if (gameInstance && gameInstance.scale) {
+        gameInstance.scale.refresh();
+      }
+    };
+    window.addEventListener("resize", resizeHandler);
+    window.addEventListener("orientationchange", resizeHandler);
 
     return gameInstance;
   }
