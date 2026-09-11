@@ -74,19 +74,28 @@ html, body {
 }
 
 #gameOverTitle {
-  font-size: 48px;
+  font-size: clamp(28px, 10vmin, 72px);
   color: #fc4503;
 }
 
 #gameOverScoreText {
-  font-size: 24px;
+  font-size: clamp(16px, 5vmin, 28px);
   margin-top: 14px;
 }
 
 #gameOverHint {
-  font-size: 14px;
+  font-size: clamp(12px, 3.5vmin, 18px);
   margin-top: 24px;
   opacity: 0.85;
+}
+
+#startPromptText {
+  font-size: clamp(18px, 6vmin, 32px);
+  padding: 0 20px;
+}
+
+#countdownOverlay {
+  font-size: clamp(48px, 20vmin, 120px);
 }
 
 #mobileControls {
@@ -112,7 +121,7 @@ html, body {
   left: 50%;
   transform: translateX(-50%);
   font-family: 'Dela Gothic One', sans-serif;
-  font-size: 12px;
+  font-size: clamp(10px, 3.5vmin, 14px);
   color: rgba(255, 255, 255, 0.55);
   text-align: center;
   padding: 8px 14px;

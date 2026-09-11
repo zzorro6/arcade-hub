@@ -2596,7 +2596,7 @@ function mountRollingRush() {
         <div id="rolling-rush-leaderboard" class="small-text" style="margin-top:0.4rem; max-height:180px; overflow-y:auto;"></div>
       </div>
 
-      <div class="rolling-rush-frame-wrap" style="position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:8px;overflow:hidden;">
+      <div class="rolling-rush-frame-wrap">
         <iframe
           id="rolling-rush-iframe"
           src="games/lost-ball/index.html"

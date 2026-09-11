@@ -71,8 +71,8 @@ function createScene() {
   sphericalHelper = new THREE.Spherical();
   pathAngleValues = [1.52, 1.57, 1.62];
 
-  sceneWidth = window.innerWidth - 20;
-  sceneHeight = window.innerHeight - 20;
+  sceneWidth = window.innerWidth;
+  sceneHeight = window.innerHeight;
 
   scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x8fd8ff, 0.09);
@@ -98,71 +98,78 @@ function createScene() {
   window.addEventListener("resize", onWindowResize, false);
   document.onkeydown = handleKeyDown;
 
-  titleText = document.createElement("div");
-  titleText.style.position = "absolute";
-  titleText.style.fontFamily = "Dela Gothic One";
-  titleText.style.textAlign = "center";
-  titleText.innerHTML = "Rolling Rush";
-  titleText.style.top = 10 + "px";
-  titleText.style.color = "#005000";
-  if(window.innerWidth < 600) {
-    titleText.style.fontSize = 24 + "px";
-    titleText.style.left = window.innerWidth / 2 - 142.5 + "px";
-  } else {
-    titleText.style.fontSize = 32 + "px";
-    titleText.style.left = window.innerWidth / 2 - 190 + "px";
-  }
-  document.body.appendChild(titleText);
+  setupHudText();
+}
 
-  pausedText = document.createElement("div");
-  pausedText.style.position = "absolute";
-  pausedText.style.fontFamily = "Dela Gothic One";
-  pausedText.style.fontWeight = "bold";
-  pausedText.style.color = "#000";
-  if(window.innerWidth < 600) {
-    pausedText.style.fontSize = 12 + "px";
-    pausedText.style.top = 45 + "px";
-    pausedText.style.left = 15 + "px";
-  } else {
-    pausedText.style.fontSize = 24 + "px";
-    pausedText.style.top = 50 + "px";
-    pausedText.style.left = 30 + "px";
+function setupHudText() {
+  if (!titleText) {
+    titleText = document.createElement("div");
+    titleText.style.position = "absolute";
+    titleText.style.fontFamily = "'Dela Gothic One', sans-serif";
+    titleText.style.textAlign = "center";
+    titleText.style.left = "50%";
+    titleText.style.transform = "translateX(-50%)";
+    titleText.innerHTML = "Rolling Rush";
+    titleText.style.color = "#ffffff";
+    titleText.style.textShadow = "0 2px 8px rgba(0,0,0,0.8)";
+    document.body.appendChild(titleText);
   }
-  document.body.appendChild(pausedText);
 
-  scoreText = document.createElement("div");
-  scoreText.style.position = "absolute";
-  scoreText.style.fontFamily = "Dela Gothic One";
-  scoreText.style.fontWeight = "bold";
-  scoreText.style.color = "#000";
-  scoreText.innerHTML = "Score: 0";
-  if(window.innerWidth < 600) {
-    scoreText.style.fontSize = 12 + "px";
-    scoreText.style.top = 65 + "px";
-    scoreText.style.left = 15 + "px";
-  } else {
-    scoreText.style.fontSize = 24 + "px";
-    scoreText.style.top = 80 + "px";
-    scoreText.style.left = 30 + "px";
+  if (!pausedText) {
+    pausedText = document.createElement("div");
+    pausedText.style.position = "absolute";
+    pausedText.style.fontFamily = "'Dela Gothic One', sans-serif";
+    pausedText.style.fontWeight = "bold";
+    pausedText.style.color = "#ffffff";
+    pausedText.style.textShadow = "0 2px 8px rgba(0,0,0,0.8)";
+    document.body.appendChild(pausedText);
   }
-  document.body.appendChild(scoreText);
 
-  highText = document.createElement("div");
-  highText.style.position = "absolute";
-  highText.style.fontFamily = "Dela Gothic One";
-  highText.style.fontWeight = "bold";
-  highText.style.color = "#000";
+  if (!scoreText) {
+    scoreText = document.createElement("div");
+    scoreText.style.position = "absolute";
+    scoreText.style.fontFamily = "'Dela Gothic One', sans-serif";
+    scoreText.style.fontWeight = "bold";
+    scoreText.style.color = "#ffffff";
+    scoreText.innerHTML = "Score: 0";
+    scoreText.style.textShadow = "0 2px 8px rgba(0,0,0,0.8)";
+    document.body.appendChild(scoreText);
+  }
+
+  if (!highText) {
+    highText = document.createElement("div");
+    highText.style.position = "absolute";
+    highText.style.fontFamily = "'Dela Gothic One', sans-serif";
+    highText.style.fontWeight = "bold";
+    highText.style.color = "#ffffff";
+    highText.style.textShadow = "0 2px 8px rgba(0,0,0,0.8)";
+    document.body.appendChild(highText);
+  }
+
+  layoutHudText();
+}
+
+function layoutHudText() {
+  var w = window.innerWidth;
+  var h = window.innerHeight;
+  var base = Math.min(w, h);
+  var isSmall = w < 600 || h < 500;
+
+  titleText.style.top = Math.round(base * 0.025) + "px";
+  titleText.style.fontSize = Math.round(base * (isSmall ? 0.07 : 0.055)) + "px";
+
+  pausedText.style.fontSize = Math.round(base * (isSmall ? 0.035 : 0.03)) + "px";
+  pausedText.style.top = Math.round(base * 0.12) + "px";
+  pausedText.style.left = Math.round(base * 0.03) + "px";
+
+  scoreText.style.fontSize = Math.round(base * (isSmall ? 0.035 : 0.03)) + "px";
+  scoreText.style.top = Math.round(base * 0.18) + "px";
+  scoreText.style.left = Math.round(base * 0.03) + "px";
+
+  highText.style.fontSize = Math.round(base * (isSmall ? 0.035 : 0.03)) + "px";
+  highText.style.top = Math.round(base * 0.24) + "px";
+  highText.style.left = Math.round(base * 0.03) + "px";
   highText.innerHTML = `High Score: ${highScore}`;
-  if(window.innerWidth < 600) {
-    highText.style.fontSize = 12 + "px";
-    highText.style.top = 85 + "px";
-    highText.style.left = 15 + "px";
-  } else {
-    highText.style.fontSize = 24 + "px";
-    highText.style.top = 110 + "px";
-    highText.style.left = 30 + "px";
-  }
-  document.body.appendChild(highText);
 }
 
 function createExplosionParticles() {
@@ -631,46 +638,9 @@ function render() {
 }
 
 function onWindowResize() {
-  sceneHeight = window.innerHeight - 20;
-  sceneWidth = window.innerWidth - 20;
-  titleText.style.left = window.innerWidth / 2 - 190 + "px";
-  if(window.innerWidth < 600) {
-    titleText.style.fontSize = 24 + "px";
-    titleText.style.left = window.innerWidth / 2 - 142.5 + "px";
-  } else {
-    titleText.style.fontSize = 32 + "px";
-    titleText.style.left = window.innerWidth / 2 - 190 + "px";
-  }
-  
-  if(window.innerWidth < 600) {
-    pausedText.style.fontSize = 12 + "px";
-    pausedText.style.top = 45 + "px";
-    pausedText.style.left = 15 + "px";
-  } else {
-    pausedText.style.fontSize = 24 + "px";
-    pausedText.style.top = 50 + "px";
-    pausedText.style.left = 30 + "px";
-  }
-  
-  if(window.innerWidth < 600) {
-    scoreText.style.fontSize = 12 + "px";
-    scoreText.style.top = 65 + "px";
-    scoreText.style.left = 15 + "px";
-  } else {
-    scoreText.style.fontSize = 24 + "px";
-    scoreText.style.top = 80 + "px";
-    scoreText.style.left = 30 + "px";
-  }
-  
-  if(window.innerWidth < 600) {
-    highText.style.fontSize = 12 + "px";
-    highText.style.top = 85 + "px";
-    highText.style.left = 15 + "px";
-  } else {
-    highText.style.fontSize = 24 + "px";
-    highText.style.top = 110 + "px";
-    highText.style.left = 30 + "px";
-  }
+  sceneHeight = window.innerHeight;
+  sceneWidth = window.innerWidth;
+  layoutHudText();
   renderer.setSize(sceneWidth, sceneHeight);
   camera.aspect = sceneWidth / sceneHeight;
   camera.updateProjectionMatrix();
