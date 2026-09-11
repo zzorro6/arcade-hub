@@ -677,59 +677,76 @@ function onWindowResize() {
 }
 
 // https://stackoverflow.com/questions/15084675/how-to-implement-swipe-gestures-for-mobile-devices/58719294#58719294
-function detectSwipe(id, func, deltaMin = 90) {
-  const swipe_det = {
-    sX: 0,
-    sY: 0,
-    eX: 0,
-    eY: 0
-  }
+// Mobile controls:
+// - Tap left half of screen -> move left
+// - Tap right half of screen -> move right
+// - Swipe up -> jump
+// This replaces the old ambiguous swipe-left/right detection.
+(function setupMobileControls() {
+  const el = document.body;
+  const TAP_MAX_DIST = 24;
+  const TAP_MAX_TIME = 260;
+  const SWIPE_MIN_DIST = 36;
+  let startX = 0, startY = 0, startTime = 0;
+  let tracking = false;
 
-  const directions = Object.freeze({
-    UP: 'up',
-    DOWN: 'down',
-    RIGHT: 'right',
-    LEFT: 'left'
-  })
-  let direction = null
-  const el = document.getElementById(id)
-  el.addEventListener('touchstart', function(e) {
-    const t = e.touches[0]
-    swipe_det.sX = t.screenX
-    swipe_det.sY = t.screenY
-  }, false)
-  el.addEventListener('touchmove', function(e) {
-    // e.preventDefault();
-    const t = e.touches[0]
-    swipe_det.eX = t.screenX
-    swipe_det.eY = t.screenY
-  }, false)
-  el.addEventListener('touchend', function(e) {
-    const deltaX = swipe_det.eX - swipe_det.sX
-    const deltaY = swipe_det.eY - swipe_det.sY
+  el.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    startX = t.screenX;
+    startY = t.screenY;
+    startTime = Date.now();
+    tracking = true;
+  }, { passive: false });
 
-    if (deltaX ** 2 + deltaY ** 2 < deltaMin ** 2) return
+  el.addEventListener('touchmove', function (e) {
+    // Stop the page from rubber-banding/scrolling while playing.
+    e.preventDefault();
+  }, { passive: false });
 
-    if (deltaY === 0 || Math.abs(deltaX / deltaY) > 1)
-      direction = deltaX > 0 ? directions.LEFT : directions.RIGHT
-    else
-      direction = deltaY > 0 ? directions.DOWN : directions.UP
+  el.addEventListener('touchend', function (e) {
+    if (!tracking) return;
+    tracking = false;
 
-    if (direction && typeof func === 'function') func(el, direction)
+    const t = e.changedTouches[0];
+    const dx = t.screenX - startX;
+    const dy = t.screenY - startY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const dt = Date.now() - startTime;
 
-    direction = null
-  }, false)
-}
+    // Swipe up (vertical movement dominates and goes up).
+    if (dist >= SWIPE_MIN_DIST && Math.abs(dy) > Math.abs(dx) && dy < 0) {
+      handleKeyDown({ keyCode: 38 });
+      return;
+    }
 
-detectSwipe('body', (el, dir) => handleSwipe(dir));
+    // Tap: move left/right based on which screen half was tapped.
+    if (dist <= TAP_MAX_DIST && dt <= TAP_MAX_TIME) {
+      const width = window.innerWidth;
+      if (t.clientX < width / 2) {
+        handleKeyDown({ keyCode: 37 }); // left
+      } else {
+        handleKeyDown({ keyCode: 39 }); // right
+      }
+    }
+  }, { passive: false });
+})();
 
 function triggerStart() {
   if (gameStarted || countdownInterval) return;
 
   var startPrompt = document.getElementById('startPrompt');
   var countdownOverlay = document.getElementById('countdownOverlay');
+  var mobileControls = document.getElementById('mobileControls');
   if (startPrompt) startPrompt.classList.add('hidden');
   if (countdownOverlay) countdownOverlay.classList.remove('hidden');
+  if (mobileControls && window.innerWidth < 600) mobileControls.classList.remove('hidden');
+
+  // Tell the parent Arcade Hub page that the run has started so it can lock
+  // the game to fullscreen on phones.
+  try {
+    window.parent.postMessage({ type: 'lostball-started' }, '*');
+  } catch (e) { /* not embedded, ignore */ }
 
   var count = 5;
   if (countdownOverlay) countdownOverlay.textContent = String(count);
@@ -785,6 +802,9 @@ function resetRun() {
   crashed = false;
   gameStarted = false;
   paused = true;
+
+  var mobileControls = document.getElementById('mobileControls');
+  if (mobileControls) mobileControls.classList.add('hidden');
 }
 
 var gameOverOverlayEl = document.getElementById('gameOverOverlay');

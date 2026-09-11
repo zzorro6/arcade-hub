@@ -1033,6 +1033,62 @@ let currentAuthMode = "login"; // "login" | "signup"
 let operatorMatchesFilter = "all"; // kept for potential future use
 let wagersFilter = "all"; // "all" | "wins" | "losses" | "today"
 
+// --- Mobile / fullscreen helpers ---
+function isTouchDevice() {
+  return (
+    typeof window !== "undefined" &&
+    ("ontouchstart" in window || navigator.maxTouchPoints > 0)
+  );
+}
+
+/**
+ * Request fullscreen for the active game shell.
+ * Falls back to a fake-fullscreen class on browsers that block or don't
+ * support the Fullscreen API (notably iOS Safari).
+ */
+async function enterGameFullscreen() {
+  const shell = document.getElementById("game-shell");
+  if (!shell) return;
+
+  shell.classList.add("game-shell--fake-fullscreen");
+
+  const target = document.fullscreenEnabled ? shell : document.documentElement;
+  if (target.requestFullscreen) {
+    try {
+      await target.requestFullscreen();
+      return;
+    } catch (err) {
+      console.warn("requestFullscreen failed, using fake fullscreen", err);
+    }
+  }
+
+  // iOS Safari fallback: lock scroll and fix the shell to the viewport.
+  document.body.classList.add("game-shell--no-scroll");
+  window.scrollTo(0, 0);
+  updateFullscreenUI();
+}
+
+function exitGameFullscreen() {
+  const shell = document.getElementById("game-shell");
+  if (shell) shell.classList.remove("game-shell--fake-fullscreen");
+  document.body.classList.remove("game-shell--no-scroll");
+
+  if (document.exitFullscreen && document.fullscreenElement) {
+    document.exitFullscreen().catch((err) => console.error(err));
+  }
+  updateFullscreenUI();
+}
+
+function toggleGameFullscreen() {
+  const shell = document.getElementById("game-shell");
+  const isFullscreen = document.fullscreenElement || (shell && shell.classList.contains("game-shell--fake-fullscreen"));
+  if (isFullscreen) {
+    exitGameFullscreen();
+  } else {
+    enterGameFullscreen().catch((err) => console.error(err));
+  }
+}
+
 // Free Spin Wheel (replaces the old daily coin bonus).
 // NOTE: reuses the existing `last_daily_at` profiles column to track the last
 // spin claim time so no database migration is required. Cash winnings are
@@ -1801,6 +1857,11 @@ function renderHub() {
       currentGameId = id;
       currentView = "game";
       render();
+      // On phones, entering a game from the hub should immediately lock it to
+      // fullscreen so the canvas isn't buried under browser chrome / scroll.
+      if (isTouchDevice()) {
+        enterGameFullscreen().catch((err) => console.error("Auto fullscreen failed", err));
+      }
     });
   });
 
@@ -1907,10 +1968,7 @@ function renderGameScreen() {
 
   if (backBtn) {
     backBtn.addEventListener("click", () => {
-      // If we're in browser fullscreen, exit it when going back to the hub.
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch((err) => console.error(err));
-      }
+      exitGameFullscreen();
       stopAllGames();
       currentView = "hub";
       currentGameId = null;
@@ -1918,13 +1976,9 @@ function renderGameScreen() {
     });
   }
 
-  if (fullscreenBtn && shell && shell.requestFullscreen) {
+  if (fullscreenBtn && shell) {
     fullscreenBtn.addEventListener("click", () => {
-      if (!document.fullscreenElement) {
-        shell.requestFullscreen().catch((err) => console.error(err));
-      } else {
-        document.exitFullscreen().catch((err) => console.error(err));
-      }
+      toggleGameFullscreen();
     });
   }
 
@@ -2550,7 +2604,7 @@ function mountRollingRush() {
           allow="autoplay"
         ></iframe>
       </div>
-      <div class="small-text" style="margin-top:0.5rem;">Click Start Tournament for a fresh cash run, then click inside the game to begin (5s countdown), and use arrow keys / A-D to dodge left/right and Space/Up to jump. Crashing ends the run — your final score is shown and submitted.</div>
+      <div class="small-text" style="margin-top:0.5rem;">Click Start Tournament for a fresh cash run, then tap inside the game to begin (5s countdown). On phones: tap the left half to move left, tap the right half to move right, and swipe up to jump. Crashing ends the run — your final score is shown and submitted.</div>
       <div class="small-text" id="rolling-rush-wager-result" style="margin-top:0.25rem; min-height:1em;"></div>
       <div id="rolling-rush-provably-fair" style="margin-top:0.5rem;display:none;"></div>
     </div>
@@ -2580,9 +2634,19 @@ function mountRollingRush() {
     window.removeEventListener("message", rollingRushMessageHandler);
   }
   rollingRushMessageHandler = (event) => {
-    if (!event.data || event.data.type !== "lostball-crash") return;
     const iframe = document.getElementById("rolling-rush-iframe");
     if (!iframe || event.source !== iframe.contentWindow) return;
+
+    if (event.data && event.data.type === "lostball-started") {
+      // User tapped start inside the iframe. On phones, ensure the game shell
+      // is locked to fullscreen so swipes don't scroll the page.
+      if (isTouchDevice()) {
+        enterGameFullscreen().catch((err) => console.error("Auto fullscreen failed", err));
+      }
+      return;
+    }
+
+    if (!event.data || event.data.type !== "lostball-crash") return;
 
     const score = Number(event.data.score) || 0;
     const scoreEl = document.getElementById("rolling-rush-score");
@@ -4880,8 +4944,8 @@ async function loadAndRenderWagers() {
       }
 
       // Generate verify button if provably fair data exists
-      const verifyBtn = row.provablyFair 
-        ? `<button class="btn btn-secondary verify-pf-btn" data-match-id="${m.id}" data-hash="${row.provablyFair.server_seed_hash || ''}" data-seed="${row.provablyFair.is_revealed ? (row.provablyFair.server_seed || '') : ''}" style="padding:0.15rem 0.5rem;font-size:0.65rem;margin-top:0.3rem;">🔍 Verify</button>`
+      const verifyBtn = row.provablyFair
+        ? `<button class="btn btn-secondary verify-pf-btn" data-match-id="${m.id}" data-hash="${row.provablyFair.server_seed_hash || ''}" data-seed="${row.provablyFair.is_revealed ? (row.provablyFair.server_seed || '') : ''}" style="padding:0.15rem 0.45rem;font-size:0.62rem;min-height:auto;">Verify</button>`
         : '';
 
       return `<div class="wager-row">
@@ -4892,11 +4956,11 @@ async function loadAndRenderWagers() {
             <span class="wager-dot">•</span>
             <span class="wager-time">${row.createdAt.toLocaleString()}</span>
           </div>
-          <div class="wager-scores small-text">${row.scoreLabel}</div>
+          <div class="wager-scores">${row.scoreLabel}</div>
         </div>
         <div class="wager-side">
           <div class="wager-amount ${amountClass}">${amountLabel}</div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.2rem;">
+          <div class="wager-actions">
             <span class="status-pill status-${row.statusKey}">${row.statusLabel}</span>
             ${verifyBtn}
           </div>
@@ -6622,10 +6686,13 @@ if (homeLogo) {
   });
 }
 
-document.addEventListener("fullscreenchange", () => {
+function updateFullscreenUI() {
   const btn = document.getElementById("game-fullscreen-toggle");
+  const shell = document.getElementById("game-shell");
+  const isFullscreen = document.fullscreenElement || (shell && shell.classList.contains("game-shell--fake-fullscreen"));
+
   if (btn) {
-    if (document.fullscreenElement) {
+    if (isFullscreen) {
       btn.setAttribute("aria-label", "Exit full screen");
       btn.setAttribute("title", "Exit full screen");
     } else {
@@ -6636,12 +6703,10 @@ document.addEventListener("fullscreenchange", () => {
 
   const cards = document.querySelectorAll('[data-leaderboard-card="true"]');
   cards.forEach((card) => {
-    if (document.fullscreenElement) {
-      card.style.display = "none";
-    } else {
-      card.style.display = "";
-    }
+    card.style.display = isFullscreen ? "none" : "";
   });
-});
+}
+
+document.addEventListener("fullscreenchange", updateFullscreenUI);
 
 // Removed debug hotkey now that Operator Dashboard exists.

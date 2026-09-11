@@ -88,3 +88,42 @@ html, body {
   margin-top: 24px;
   opacity: 0.85;
 }
+
+#mobileControls {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+  display: flex;
+}
+
+.control-zone {
+  flex: 1 1 50%;
+  height: 100%;
+}
+
+.control-left {
+  border-right: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
+.control-hint {
+  position: absolute;
+  bottom: 14%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Dela Gothic One', sans-serif;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  text-align: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@media (min-width: 600px) {
+  #mobileControls {
+    display: none;
+  }
+}
