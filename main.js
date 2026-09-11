@@ -1060,7 +1060,6 @@ const MATCH_TIMEOUT_MS = 3 * 24 * 60 * 60 * 1000; // 3 days before treating unma
 // Cash tournament entry amounts (real money)
 const CASH_ENTRY_AMOUNTS = [0.5, 1, 2, 5, 10, 20];
 let currentCashEntryIndex = 1; // start at $1
-let flappyWagerMode = "cash"; // "coin" or "cash" (coin wagers hidden for now)
 
 const ADMIN_USERNAMES = ["zoominz9"]; // usernames allowed to see admin-only views
 
@@ -1097,9 +1096,6 @@ function setCashEntryIndex(nextIndex) {
   currentCashEntryIndex = clamped;
   updateFlappyCashUI();
   if (typeof updateGermsCashUI === "function") updateGermsCashUI();
-  if (typeof updateChickenCashUI === "function") updateChickenCashUI();
-  if (typeof updateReactionCashUI === "function") updateReactionCashUI();
-  if (typeof updateStackCashUI === "function") updateStackCashUI();
   if (typeof updateNightShiftCashUI === "function") updateNightShiftCashUI();
   if (typeof updateRollingRushCashUI === "function") updateRollingRushCashUI();
   if (typeof updateGeometryRushCashUI === "function") updateGeometryRushCashUI();
@@ -1113,133 +1109,12 @@ function decreaseCashEntry() {
   setCashEntryIndex(currentCashEntryIndex - 1);
 }
 
-function getFlappyPlayerCount() {
-  const playersSelect = document.getElementById("flappy-players");
-  return playersSelect ? parseInt(playersSelect.value) : 2;
-}
-
-function updateFlappyCashUI() {
-  const entry = getCurrentCashEntry();
-  const playerCount = getFlappyPlayerCount();
-  const total = entry * playerCount;
-  const fee = total * 0.15;
-  const payout = total - fee;
-
-  const cashLabel = document.getElementById("flappy-cash-label");
-  if (cashLabel) {
-    cashLabel.textContent = `Entry: $${entry.toFixed(2)}`;
-  }
-  const cashPayout = document.getElementById("flappy-cash-payout");
-  if (cashPayout) {
-    cashPayout.textContent = `Win: $${payout.toFixed(2)}`;
-  }
-  const cashUp = document.getElementById("flappy-cash-up");
-  const cashDown = document.getElementById("flappy-cash-down");
-  if (cashUp) cashUp.disabled = currentCashEntryIndex >= CASH_ENTRY_AMOUNTS.length - 1;
-  if (cashDown) cashDown.disabled = currentCashEntryIndex <= 0;
-}
-
-function setFlappyWagerMode(mode) {
-  flappyWagerMode = mode;
-  const coinControls = document.getElementById("flappy-coin-controls");
-  const cashControls = document.getElementById("flappy-cash-controls");
-  const coinToggle = document.getElementById("flappy-mode-coin");
-  const cashToggle = document.getElementById("flappy-mode-cash");
-
-  if (mode === "cash") {
-    if (coinControls) coinControls.style.display = "none";
-    if (cashControls) cashControls.style.display = "";
-    if (coinToggle) coinToggle.classList.remove("active");
-    if (cashToggle) cashToggle.classList.add("active");
-    updateFlappyCashUI();
-  } else {
-    if (coinControls) coinControls.style.display = "";
-    if (cashControls) cashControls.style.display = "none";
-    if (coinToggle) coinToggle.classList.add("active");
-    if (cashToggle) cashToggle.classList.remove("active");
-    updateWagerButtons();
-  }
-}
-
 function updateWagerButtons() {
   const amount = getCurrentWagerAmount();
-  const flappyPlayerCount = getFlappyPlayerCount();
-  const flappyTotal = amount * flappyPlayerCount;
-  const flappyFee = Math.round(flappyTotal * 0.15);
-  const flappyPrize = flappyTotal - flappyFee;
-  
-  // Default 2-player calc for other games
+
   const total = amount * 2;
   const fee = Math.round(total * 0.15);
   const payout = total - fee;
-
-  const flappyBtn = document.getElementById("flappy-wager");
-  if (flappyBtn) {
-    flappyBtn.textContent = "Start Tournament";
-  }
-  const flappyBetLabel = document.getElementById("flappy-bet-label");
-  if (flappyBetLabel) {
-    flappyBetLabel.textContent = `Entry fee: ${amount}`;
-  }
-  const flappyPayoutEl = document.getElementById("flappy-payout");
-  if (flappyPayoutEl) {
-    flappyPayoutEl.textContent = `Win - ${flappyPrize}`;
-  }
-  const flappyUp = document.getElementById("flappy-bet-up");
-  const flappyDown = document.getElementById("flappy-bet-down");
-  if (flappyUp) flappyUp.disabled = currentWagerIndex >= WAGER_AMOUNTS.length - 1;
-  if (flappyDown) flappyDown.disabled = currentWagerIndex <= 0;
-
-  const stackBtn = document.getElementById("stack-wager");
-  if (stackBtn) {
-    stackBtn.textContent = "Start Tournament";
-  }
-  const stackBetLabel = document.getElementById("stack-bet-label");
-  if (stackBetLabel) {
-    stackBetLabel.textContent = `Entry fee: ${amount}`;
-  }
-  const stackPayout = document.getElementById("stack-payout");
-  if (stackPayout) {
-    stackPayout.textContent = `Win - ${payout}`;
-  }
-  const stackUp = document.getElementById("stack-bet-up");
-  const stackDown = document.getElementById("stack-bet-down");
-  if (stackUp) stackUp.disabled = currentWagerIndex >= WAGER_AMOUNTS.length - 1;
-  if (stackDown) stackDown.disabled = currentWagerIndex <= 0;
-
-  const reactionBtn = document.getElementById("reaction-wager");
-  if (reactionBtn) {
-    reactionBtn.textContent = "Start Tournament";
-  }
-  const reactionBetLabel = document.getElementById("reaction-bet-label");
-  if (reactionBetLabel) {
-    reactionBetLabel.textContent = `Entry fee: ${amount}`;
-  }
-  const reactionPayout = document.getElementById("reaction-payout");
-  if (reactionPayout) {
-    reactionPayout.textContent = `Win - ${payout}`;
-  }
-  const reactionUp = document.getElementById("reaction-bet-up");
-  const reactionDown = document.getElementById("reaction-bet-down");
-  if (reactionUp) reactionUp.disabled = currentWagerIndex >= WAGER_AMOUNTS.length - 1;
-  if (reactionDown) reactionDown.disabled = currentWagerIndex <= 0;
-
-  const chickenBtn = document.getElementById("chicken-wager");
-  if (chickenBtn) {
-    chickenBtn.textContent = "Start Tournament";
-  }
-  const chickenBetLabel = document.getElementById("chicken-bet-label");
-  if (chickenBetLabel) {
-    chickenBetLabel.textContent = `Entry fee: ${amount}`;
-  }
-  const chickenPayout = document.getElementById("chicken-payout");
-  if (chickenPayout) {
-    chickenPayout.textContent = `Win - ${payout}`;
-  }
-  const chickenUp = document.getElementById("chicken-bet-up");
-  const chickenDown = document.getElementById("chicken-bet-down");
-  if (chickenUp) chickenUp.disabled = currentWagerIndex >= WAGER_AMOUNTS.length - 1;
-  if (chickenDown) chickenDown.disabled = currentWagerIndex <= 0;
 
   const germsBtn = document.getElementById("germs-wager");
   if (germsBtn) {
@@ -1279,66 +1154,6 @@ function updateGermsCashUI() {
   if (cashDown) cashDown.disabled = currentCashEntryIndex <= 0;
 }
 
-function updateChickenCashUI() {
-  const entry = getCurrentCashEntry();
-  const total = entry * 2;
-  const fee = total * 0.15;
-  const payout = total - fee;
-
-  const cashLabel = document.getElementById("chicken-cash-label");
-  if (cashLabel) {
-    cashLabel.textContent = `Entry: $${entry.toFixed(2)}`;
-  }
-  const cashPayout = document.getElementById("chicken-cash-payout");
-  if (cashPayout) {
-    cashPayout.textContent = `Win: $${payout.toFixed(2)}`;
-  }
-  const cashUp = document.getElementById("chicken-cash-up");
-  const cashDown = document.getElementById("chicken-cash-down");
-  if (cashUp) cashUp.disabled = currentCashEntryIndex >= CASH_ENTRY_AMOUNTS.length - 1;
-  if (cashDown) cashDown.disabled = currentCashEntryIndex <= 0;
-}
-
-function updateReactionCashUI() {
-  const entry = getCurrentCashEntry();
-  const total = entry * 2;
-  const fee = total * 0.15;
-  const payout = total - fee;
-
-  const cashLabel = document.getElementById("reaction-cash-label");
-  if (cashLabel) {
-    cashLabel.textContent = `Entry: $${entry.toFixed(2)}`;
-  }
-  const cashPayout = document.getElementById("reaction-cash-payout");
-  if (cashPayout) {
-    cashPayout.textContent = `Win: $${payout.toFixed(2)}`;
-  }
-  const cashUp = document.getElementById("reaction-cash-up");
-  const cashDown = document.getElementById("reaction-cash-down");
-  if (cashUp) cashUp.disabled = currentCashEntryIndex >= CASH_ENTRY_AMOUNTS.length - 1;
-  if (cashDown) cashDown.disabled = currentCashEntryIndex <= 0;
-}
-
-function updateStackCashUI() {
-  const entry = getCurrentCashEntry();
-  const total = entry * 2;
-  const fee = total * 0.15;
-  const payout = total - fee;
-
-  const cashLabel = document.getElementById("stack-cash-label");
-  if (cashLabel) {
-    cashLabel.textContent = `Entry: $${entry.toFixed(2)}`;
-  }
-  const cashPayout = document.getElementById("stack-cash-payout");
-  if (cashPayout) {
-    cashPayout.textContent = `Win: $${payout.toFixed(2)}`;
-  }
-  const cashUp = document.getElementById("stack-cash-up");
-  const cashDown = document.getElementById("stack-cash-down");
-  if (cashUp) cashUp.disabled = currentCashEntryIndex >= CASH_ENTRY_AMOUNTS.length - 1;
-  if (cashDown) cashDown.disabled = currentCashEntryIndex <= 0;
-}
-
 function setGermsWagerMode(mode) {
   germsWagerMode = mode;
   const coinControls = document.getElementById("germs-coin-controls");
@@ -1372,10 +1187,6 @@ function isAdmin() {
 // When a user joins an existing Flappy wager from history, we stash
 // the match to attach wager state after Flappy mounts.
 let pendingFlappyJoin = null; // { matchId, slot }
-// Same pattern for Stack Duel wagers (from auto-join/create or history later).
-let pendingStackJoin = null; // { matchId, slot }
-// Same pattern for Chicken Run wagers.
-let pendingChickenJoin = null; // { matchId, slot }
 // Same pattern for Avoid the Germs wagers.
 let pendingGermsJoin = null; // { matchId, slot, isCashMode, cashEntry }
 
@@ -1879,27 +1690,6 @@ const gameCards = [
     comingSoon: false,
   },
   {
-    id: "stack-duel",
-    title: "Stack Duel",
-    description: "Time your drops to build the tallest tower.",
-    mode: "1v1 skill",
-    comingSoon: false,
-  },
-  {
-    id: "chicken-run",
-    title: "Chicken Run",
-    description: "Dodge obstacles and survive longer than your opponent.",
-    mode: "1v1 skill",
-    comingSoon: false,
-  },
-  {
-    id: "reaction-duel",
-    title: "Reaction Duel",
-    description: "Wait for the signal, then click faster than your rival.",
-    mode: "1v1 skill",
-    comingSoon: false,
-  },
-  {
     id: "speed-dash",
     title: "Speed Dash",
     description: "Click fast to sprint! Race against others in real-time.",
@@ -1931,6 +1721,13 @@ const gameCards = [
     id: "geometry-rush",
     title: "Geometry Rush",
     description: "Fast-paced side-scrolling jumper. Time your jumps past spikes and blocks, chain combos off orbs — one hit ends the run, highest score wins.",
+    mode: "1v1 skill",
+    comingSoon: false,
+  },
+  {
+    id: "color-rush",
+    title: "Color Rush",
+    description: "One-tap endless climber. Switch your color to match each spinning ring as you pass — one mismatch ends the run, highest score wins.",
     mode: "1v1 skill",
     comingSoon: false,
   },
@@ -2052,17 +1849,8 @@ function renderHub() {
 
 // --- Game screen + games ---
 
-let reactionState = null;
-let reactionTimeoutId = null;
-
 let flappyState = null;
-let flappyAnimId = null;
-
-let stackState = null;
-let stackAnimId = null;
-
-let chickenState = null;
-let chickenAnimId = null;
+let flappyMessageHandler = null;
 
 let speedDashState = null;
 let speedDashAnimId = null;
@@ -2075,6 +1863,8 @@ let rollingRushState = null;
 let rollingRushMessageHandler = null;
 let geometryRushState = null;
 let geometryRushMessageHandler = null;
+let colorRushState = null;
+let colorRushMessageHandler = null;
 let germsWagerMode = "cash"; // "coin" or "cash" (coin wagers hidden for now)
 
 function renderGameScreen() {
@@ -2138,14 +1928,8 @@ function renderGameScreen() {
     });
   }
 
-  if (currentGameId === "reaction-duel") {
-    mountReactionDuel();
-  } else if (currentGameId === "flappy-race") {
+  if (currentGameId === "flappy-race") {
     mountFlappyRace();
-  } else if (currentGameId === "stack-duel") {
-    mountStackDuel();
-  } else if (currentGameId === "chicken-run") {
-    mountChickenRun();
   } else if (currentGameId === "speed-dash") {
     mountSpeedDash();
   } else if (currentGameId === "avoid-germs") {
@@ -2156,6 +1940,8 @@ function renderGameScreen() {
     mountRollingRush();
   } else if (currentGameId === "geometry-rush") {
     mountGeometryRush();
+  } else if (currentGameId === "color-rush") {
+    mountColorRush();
   } else {
     const root = document.getElementById("game-root");
     root.textContent = "Prototype coming soon.";
@@ -3223,30 +3009,260 @@ async function handleGeometryRushGameOver(score) {
   }
 }
 
-function stopAllGames() {
-  if (reactionTimeoutId) {
-    clearTimeout(reactionTimeoutId);
-    reactionTimeoutId = null;
-  }
-  reactionState = null;
+function mountColorRush() {
+  const root = document.getElementById("game-root");
+  root.innerHTML = `
+    <div class="color-rush-layout">
+      <div class="color-rush-top">
+        <div class="small-text">Score this run</div>
+        <div class="chicken-score" id="color-rush-score">0</div>
 
-  if (flappyAnimId) {
-    cancelAnimationFrame(flappyAnimId);
-    flappyAnimId = null;
+        <button class="btn btn-secondary" id="color-rush-wager">Start Tournament</button>
+
+        <div id="color-rush-cash-controls">
+          <div class="bet-controls">
+            <button class="bet-btn" id="color-rush-cash-down">-</button>
+            <span class="bet-label" id="color-rush-cash-label">Entry: $1.00</span>
+            <button class="bet-btn" id="color-rush-cash-up">+</button>
+          </div>
+          <div class="small-text" id="color-rush-cash-payout" style="margin-top:0.15rem; min-height:1em;">Win: $1.70</div>
+        </div>
+      </div>
+
+      <div class="card" data-leaderboard-card="true" style="margin-top:0.5rem; margin-bottom:0.75rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
+          <h3 class="section-title" style="margin-bottom:0;">Top 5 - Color Rush</h3>
+          <button id="color-rush-leaderboard-refresh" class="btn btn-secondary" style="padding:0.2rem 0.6rem;font-size:0.7rem;">Refresh</button>
+        </div>
+        <div id="color-rush-leaderboard" class="small-text" style="margin-top:0.4rem; max-height:180px; overflow-y:auto;"></div>
+      </div>
+
+      <div class="color-rush-frame-wrap">
+        <iframe
+          id="color-rush-iframe"
+          src="games/color-rush/index.html"
+          allow="autoplay"
+        ></iframe>
+      </div>
+      <div class="small-text" style="margin-top:0.5rem;">Click Start Tournament for a fresh cash run, then click START inside the game and use Space / click / tap to switch your color to match each ring as you pass through it. One mismatch ends the run — your final score is shown and submitted.</div>
+      <div class="small-text" id="color-rush-wager-result" style="margin-top:0.25rem; min-height:1em;"></div>
+      <div id="color-rush-provably-fair" style="margin-top:0.5rem;display:none;"></div>
+    </div>
+  `;
+
+  const wagerBtn = document.getElementById("color-rush-wager");
+  if (wagerBtn) {
+    wagerBtn.addEventListener("click", handleColorRushWagerClick);
+  }
+
+  const cashDown = document.getElementById("color-rush-cash-down");
+  const cashUp = document.getElementById("color-rush-cash-up");
+  if (cashDown) cashDown.addEventListener("click", () => decreaseCashEntry());
+  if (cashUp) cashUp.addEventListener("click", () => increaseCashEntry());
+
+  updateColorRushCashUI();
+
+  loadLeaderboardForGame("color-rush", "color-rush-leaderboard");
+  const lbRefresh = document.getElementById("color-rush-leaderboard-refresh");
+  if (lbRefresh) {
+    lbRefresh.addEventListener("click", () => {
+      loadLeaderboardForGame("color-rush", "color-rush-leaderboard");
+    });
+  }
+
+  if (colorRushMessageHandler) {
+    window.removeEventListener("message", colorRushMessageHandler);
+  }
+  colorRushMessageHandler = (event) => {
+    if (!event.data || event.data.type !== "color-rush-gameover") return;
+    const iframe = document.getElementById("color-rush-iframe");
+    if (!iframe || event.source !== iframe.contentWindow) return;
+
+    const score = Number(event.data.score) || 0;
+    const scoreEl = document.getElementById("color-rush-score");
+    if (scoreEl) scoreEl.textContent = String(score);
+
+    handleColorRushGameOver(score);
+  };
+  window.addEventListener("message", colorRushMessageHandler);
+
+  if (colorRushState && colorRushState.inWager) {
+    if (wagerBtn) wagerBtn.style.display = "none";
+    if (colorRushState.serverSeedHash) {
+      const pfEl = document.getElementById("color-rush-provably-fair");
+      if (pfEl) {
+        pfEl.style.display = "block";
+        pfEl.innerHTML = renderProvablyFairBadge(colorRushState.serverSeedHash, true);
+        pfEl.onclick = () => window.showProvablyFairInfo(colorRushState.serverSeedHash, colorRushState.serverSeed, colorRushState.matchId);
+      }
+    }
+  }
+}
+
+function updateColorRushCashUI() {
+  const entry = getCurrentCashEntry();
+  const total = entry * 2;
+  const fee = total * 0.15;
+  const payout = total - fee;
+
+  const cashLabel = document.getElementById("color-rush-cash-label");
+  if (cashLabel) {
+    cashLabel.textContent = `Entry: $${entry.toFixed(2)}`;
+  }
+  const cashPayout = document.getElementById("color-rush-cash-payout");
+  if (cashPayout) {
+    cashPayout.textContent = `Win: $${payout.toFixed(2)}`;
+  }
+  const cashUp = document.getElementById("color-rush-cash-up");
+  const cashDown = document.getElementById("color-rush-cash-down");
+  if (cashUp) cashUp.disabled = currentCashEntryIndex >= CASH_ENTRY_AMOUNTS.length - 1;
+  if (cashDown) cashDown.disabled = currentCashEntryIndex <= 0;
+}
+
+async function handleColorRushWagerClick() {
+  if (!supabaseClient || !currentUser) {
+    openAuthModal("login");
+    return;
+  }
+
+  const canPlay = await checkBanBeforeGame('color_rush');
+  if (!canPlay) return;
+
+  const btn = document.getElementById("color-rush-wager");
+  if (!btn) return;
+
+  const cashEntry = getCurrentCashEntry();
+
+  const now = Date.now();
+  const last = lastWagerAtByGame["color-rush"] || 0;
+  if (now - last < WAGER_COOLDOWN_MS) {
+    const remaining = Math.ceil((WAGER_COOLDOWN_MS - (now - last)) / 1000);
+    alert(`Please wait ${remaining}s before starting another Color Rush tournament.`);
+    return;
+  }
+
+  if (colorRushState && colorRushState.inWager) {
+    btn.style.display = "none";
+    alert("You already have an active tournament run. Finish it before starting another.");
+    return;
+  }
+
+  if ((currentUser.cash_balance ?? 0) < cashEntry) {
+    alert(`Not enough cash for a $${cashEntry.toFixed(2)} entry. Please deposit more.`);
+    return;
+  }
+
+  btn.disabled = true;
+  btn.style.display = "none";
+
+  try {
+    const match = await createCashMatchForGame("color-rush", cashEntry);
+    if (!match) {
+      throw new Error("Could not create cash match.");
+    }
+    const slot = match.player2_id === currentUser.id ? "player2" : "player1";
+
+    lastWagerAtByGame["color-rush"] = now;
+
+    colorRushState = colorRushState || {};
+    colorRushState.inWager = true;
+    colorRushState.matchId = match.id;
+    colorRushState.playerSlot = slot;
+    colorRushState.gameOverReported = false;
+    colorRushState.cashEntry = cashEntry;
+    colorRushState.provablyFairId = match.provablyFairId || null;
+    colorRushState.serverSeedHash = match.serverSeedHash || null;
+    colorRushState.serverSeed = match.serverSeed || null;
+
+    await loadCurrentUser();
+
+    // Force a fresh run for this wager (clears any practice-mode state) and
+    // seed the game with the shared match id so both players in this wager
+    // face the exact same ring color/rotation sequence — pure skill decides
+    // the winner.
+    const iframe = document.getElementById("color-rush-iframe");
+    if (iframe) {
+      iframe.src = `games/color-rush/index.html?seed=${encodeURIComponent(match.id)}`;
+    }
+
+    const scoreEl = document.getElementById("color-rush-score");
+    if (scoreEl) scoreEl.textContent = "0";
+
+    const resultEl = document.getElementById("color-rush-wager-result");
+    if (resultEl) {
+      resultEl.textContent = `Match ${slot === "player2" ? "found" : "created"} ($${cashEntry.toFixed(2)} cash). Click START inside the game — your score at the first mismatch is submitted.`;
+    }
+
+    const pfEl = document.getElementById("color-rush-provably-fair");
+    if (pfEl && colorRushState.serverSeedHash) {
+      pfEl.style.display = "block";
+      pfEl.innerHTML = renderProvablyFairBadge(colorRushState.serverSeedHash, true);
+      pfEl.onclick = () => window.showProvablyFairInfo(colorRushState.serverSeedHash, null, colorRushState.matchId);
+    }
+  } catch (err) {
+    console.error(err);
+    alert(err.message || "Failed to start wager match.");
+  } finally {
+    if (btn && !(colorRushState && colorRushState.inWager)) {
+      btn.disabled = false;
+    }
+  }
+}
+
+async function handleColorRushGameOver(score) {
+  if (
+    !supabaseClient ||
+    !currentUser ||
+    !colorRushState?.inWager ||
+    !colorRushState.matchId ||
+    !colorRushState.playerSlot ||
+    colorRushState.gameOverReported
+  ) {
+    return;
+  }
+
+  colorRushState.gameOverReported = true;
+
+  const cashEntry = colorRushState.cashEntry;
+
+  try {
+    await submitMatchScore(colorRushState.matchId, colorRushState.playerSlot, score);
+    const resultEl = document.getElementById("color-rush-wager-result");
+    if (resultEl) {
+      resultEl.textContent = `$${cashEntry.toFixed(2)} cash run finished. Score: ${score}. Awaiting other player...`;
+    }
+
+    if (colorRushState.provablyFairId) {
+      await ProvablyFair.revealGame(colorRushState.provablyFairId);
+      const pfEl = document.getElementById("color-rush-provably-fair");
+      if (pfEl && colorRushState.serverSeedHash && colorRushState.serverSeed) {
+        pfEl.innerHTML = renderProvablyFairBadge(colorRushState.serverSeedHash, true);
+        pfEl.onclick = () => window.showProvablyFairInfo(colorRushState.serverSeedHash, colorRushState.serverSeed, colorRushState.matchId);
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    alert(err.message || "Failed to submit wager score.");
+  } finally {
+    colorRushState.inWager = false;
+    colorRushState.matchId = null;
+    colorRushState.playerSlot = null;
+    colorRushState.cashEntry = null;
+
+    const btn = document.getElementById("color-rush-wager");
+    if (btn) {
+      btn.disabled = false;
+      btn.style.display = "";
+    }
+  }
+}
+
+function stopAllGames() {
+  if (flappyMessageHandler) {
+    window.removeEventListener("message", flappyMessageHandler);
+    flappyMessageHandler = null;
   }
   flappyState = null;
-
-  if (stackAnimId) {
-    cancelAnimationFrame(stackAnimId);
-    stackAnimId = null;
-  }
-  stackState = null;
-
-  if (chickenAnimId) {
-    cancelAnimationFrame(chickenAnimId);
-    chickenAnimId = null;
-  }
-  chickenState = null;
 
   if (speedDashAnimId) {
     cancelAnimationFrame(speedDashAnimId);
@@ -3280,373 +3296,27 @@ function stopAllGames() {
     geometryRushMessageHandler = null;
   }
   geometryRushState = null;
+
+  if (colorRushMessageHandler) {
+    window.removeEventListener("message", colorRushMessageHandler);
+    colorRushMessageHandler = null;
+  }
+  colorRushState = null;
 }
 
-// --- Reaction Duel (single-player prototype) ---
-
-function mountReactionDuel() {
-  const root = document.getElementById("game-root");
-  root.innerHTML = `
-    <div class="reaction-layout">
-      <div class="reaction-panel">
-        <div class="reaction-status" id="reaction-status">Tap start, then wait for GREEN...</div>
-        <button class="btn" id="reaction-start">Start round</button>
-        <button class="btn btn-secondary" id="reaction-click" disabled>Click when green</button>
-      </div>
-      <div class="reaction-stats">
-        <div class="small-text">Last reaction time</div>
-        <div class="reaction-time" id="reaction-last">-- ms</div>
-        <div class="small-text" style="margin-top:0.5rem;">Best time</div>
-        <div class="reaction-time" id="reaction-best">-- ms</div>
-      </div>
-      <div class="reaction-wager-panel">
-        <button class="btn btn-secondary" id="reaction-wager">Start Tournament</button>
-        <!-- Coin controls hidden for now -->
-        <div id="reaction-coin-controls" style="display:none;">
-          <div class="bet-controls">
-            <button class="bet-btn" id="reaction-bet-down">-</button>
-            <span class="bet-label" id="reaction-bet-label">Entry fee: 100</span>
-            <button class="bet-btn" id="reaction-bet-up">+</button>
-          </div>
-          <div class="small-text" id="reaction-payout" style="margin-top:0.15rem; min-height:1em;"></div>
-        </div>
-        <!-- Cash entry controls -->
-        <div id="reaction-cash-controls">
-          <div class="bet-controls">
-            <button class="bet-btn" id="reaction-cash-down">-</button>
-            <span class="bet-label" id="reaction-cash-label">Entry: $1.00</span>
-            <button class="bet-btn" id="reaction-cash-up">+</button>
-          </div>
-          <div class="small-text" id="reaction-cash-payout" style="margin-top:0.15rem; min-height:1em;">Win: $1.70</div>
-        </div>
-        <div class="small-text" id="reaction-wager-result" style="margin-top:0.25rem; min-height:1em;"></div>
-        <div id="reaction-provably-fair" style="margin-top:0.5rem;display:none;"></div>
-      </div>
-      <div class="card" data-leaderboard-card="true" style="margin-top:0.5rem; margin-bottom:0.75rem;">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
-          <h3 class="section-title" style="margin-bottom:0;">Top 5 - Reaction Duel</h3>
-          <button id="reaction-leaderboard-refresh" class="btn btn-secondary" style="padding:0.2rem 0.6rem;font-size:0.7rem;">Refresh</button>
-        </div>
-        <div id="reaction-leaderboard" class="small-text" style="margin-top:0.4rem; max-height:180px; overflow-y:auto;"></div>
-      </div>
-    </div>
-  `;
-
-  const wagerBtn = document.getElementById("reaction-wager");
-  const betDownBtn = document.getElementById("reaction-bet-down");
-  const betUpBtn = document.getElementById("reaction-bet-up");
-
-  reactionState = {
-    waiting: false,
-    canClick: false,
-    signalTime: 0,
-    best: null,
-    inWager: false,
-    matchId: null,
-    playerSlot: null,
-    wagerAmount: null,
-    isCashMode: false,
-    cashEntry: null,
-    gameOverReported: false,
-    // Anti-cheat
-    antiCheatSession: null,
-    suspiciouslyFastCount: 0, // Track impossibly fast reactions
-  };
-
-  document
-    .getElementById("reaction-start")
-    .addEventListener("click", handleReactionStart);
-  document
-    .getElementById("reaction-click")
-    .addEventListener("click", handleReactionClick);
-
-  if (wagerBtn) {
-    wagerBtn.addEventListener("click", handleReactionWagerClick);
-  }
-  if (betDownBtn) {
-    betDownBtn.addEventListener("click", () => {
-      decreaseWagerAmount();
-    });
-  }
-  if (betUpBtn) {
-    betUpBtn.addEventListener("click", () => {
-      increaseWagerAmount();
-    });
-  }
-
-  const reactionCashDown = document.getElementById("reaction-cash-down");
-  const reactionCashUp = document.getElementById("reaction-cash-up");
-  if (reactionCashDown) reactionCashDown.addEventListener("click", () => decreaseCashEntry());
-  if (reactionCashUp) reactionCashUp.addEventListener("click", () => increaseCashEntry());
-
-  // Ensure labels reflect the current wager amount
-  updateWagerButtons();
-  updateReactionCashUI();
-
-  // Load leaderboard for this game
-  loadLeaderboardForGame("reaction-duel", "reaction-leaderboard");
-
-  const reactionLbRefresh = document.getElementById("reaction-leaderboard-refresh");
-  if (reactionLbRefresh) {
-    reactionLbRefresh.addEventListener("click", () => {
-      loadLeaderboardForGame("reaction-duel", "reaction-leaderboard");
-    });
-  }
-}
-
-function handleReactionStart() {
-  const statusEl = document.getElementById("reaction-status");
-  const clickBtn = document.getElementById("reaction-click");
-
-  // Only allow play when a wager is active
-  if (!reactionState.inWager) {
-    const resultEl = document.getElementById("reaction-wager-result");
-    if (resultEl) {
-      resultEl.textContent = "Start a wager to play this game.";
-    }
-    return;
-  }
-
-  if (reactionTimeoutId) {
-    clearTimeout(reactionTimeoutId);
-    reactionTimeoutId = null;
-  }
-
-  reactionState.waiting = true;
-  reactionState.canClick = false;
-  clickBtn.disabled = true;
-  statusEl.textContent = "Wait for GREEN...";
-  statusEl.classList.remove("reaction-ready");
-
-  const delay = 1500 + Math.random() * 2500;
-  reactionTimeoutId = setTimeout(() => {
-    reactionState.waiting = false;
-    reactionState.canClick = true;
-    reactionState.signalTime = performance.now();
-    clickBtn.disabled = false;
-    statusEl.textContent = "CLICK!";
-    statusEl.classList.add("reaction-ready");
-  }, delay);
-}
-
-function handleReactionClick() {
-  const statusEl = document.getElementById("reaction-status");
-  const lastEl = document.getElementById("reaction-last");
-  const bestEl = document.getElementById("reaction-best");
-
-  if (!reactionState.canClick) {
-    statusEl.textContent = "Too early! Wait for GREEN, then click.";
-    statusEl.classList.remove("reaction-ready");
-    return;
-  }
-
-  const now = performance.now();
-  const diff = Math.round(now - reactionState.signalTime);
-  reactionState.canClick = false;
-
-  // Anti-cheat: Detect impossibly fast reactions (human minimum is ~150ms for visual)
-  if (diff < 100 && reactionState.antiCheatSession) {
-    reactionState.suspiciouslyFastCount++;
-    
-    // If multiple impossibly fast reactions, flag as cheater
-    if (reactionState.suspiciouslyFastCount >= 2) {
-      AntiCheat.handleDetection(
-        AntiCheat.sessions[reactionState.antiCheatSession],
-        'HIGH',
-        { reactionTime: diff, suspiciousCount: reactionState.suspiciouslyFastCount, reason: 'IMPOSSIBLE_REACTION_TIME' }
-      );
-      statusEl.textContent = "Suspicious activity detected.";
-      return;
-    }
-  }
-
-  lastEl.textContent = `${diff} ms`;
-  statusEl.textContent = "Nice! Hit start to try again.";
-  statusEl.classList.remove("reaction-ready");
-
-  if (reactionState.best === null || diff < reactionState.best) {
-    reactionState.best = diff;
-    bestEl.textContent = `${diff} ms`;
-  }
-
-  // If this was a wager run, submit the reaction time as the score (lower is better).
-  if (
-    reactionState.inWager &&
-    reactionState.matchId &&
-    reactionState.playerSlot &&
-    !reactionState.gameOverReported
-  ) {
-    reactionState.gameOverReported = true;
-    handleReactionGameOver(diff);
-  }
-}
-
-async function handleReactionWagerClick() {
-  if (!supabaseClient || !currentUser) {
-    openAuthModal("login");
-    return;
-  }
-
-  // Check if player is banned
-  const canPlay = await checkBanBeforeGame('reaction_duel');
-  if (!canPlay) return;
-
-  const btn = document.getElementById("reaction-wager");
-  if (!btn) return;
-
-  const cashEntry = getCurrentCashEntry();
-  const now = Date.now();
-  const last = lastWagerAtByGame["reaction-duel"] || 0;
-  if (now - last < WAGER_COOLDOWN_MS) {
-    const remaining = Math.ceil((WAGER_COOLDOWN_MS - (now - last)) / 1000);
-    alert(`Please wait ${remaining}s before starting another Reaction wager.`);
-    return;
-  }
-
-  if (reactionState && reactionState.inWager) {
-    alert("You already have an active wager round. Finish it before starting another.");
-    return;
-  }
-
-  if ((currentUser.cash_balance ?? 0) < cashEntry) {
-    alert(`Not enough cash for a $${cashEntry.toFixed(2)} entry. Please deposit more.`);
-    return;
-  }
-
-  btn.disabled = true;
-
-  try {
-    const match = await createCashMatchForGame("reaction-duel", cashEntry);
-    if (!match) {
-      throw new Error("Could not create cash match.");
-    }
-    const slot = match.player2_id === currentUser.id ? "player2" : "player1";
-
-    await loadCurrentUser();
-    lastWagerAtByGame["reaction-duel"] = now;
-
-    reactionState.inWager = true;
-    reactionState.matchId = match.id;
-    reactionState.playerSlot = slot;
-    reactionState.wagerAmount = null;
-    reactionState.isCashMode = true;
-    reactionState.cashEntry = cashEntry;
-    reactionState.gameOverReported = false;
-    // Provably Fair data
-    reactionState.provablyFairId = match.provablyFairId || null;
-    reactionState.serverSeedHash = match.serverSeedHash || null;
-    reactionState.serverSeed = match.serverSeed || null;
-    // Create anti-cheat session for this game
-    reactionState.antiCheatSession = AntiCheat.createSession('reaction_duel', match.id, currentUser.id);
-    reactionState.suspiciouslyFastCount = 0;
-
-    const statusEl = document.getElementById("reaction-status");
-    if (statusEl) {
-      const modeLabel = `$${cashEntry.toFixed(2)} cash`;
-      statusEl.textContent =
-        slot === "player2"
-          ? `Joined a ${modeLabel} wager. Start a round and click when it turns green!`
-          : `Created a ${modeLabel} wager. Start a round and click when it turns green!`;
-    }
-
-    const resultEl = document.getElementById("reaction-wager-result");
-    if (resultEl) {
-      resultEl.textContent = "Wager active - your next valid reaction will be submitted.";
-    }
-    
-    // Show Provably Fair badge
-    const pfEl = document.getElementById("reaction-provably-fair");
-    if (pfEl && reactionState.serverSeedHash) {
-      pfEl.style.display = "block";
-      pfEl.innerHTML = renderProvablyFairBadge(reactionState.serverSeedHash, true);
-      pfEl.onclick = () => window.showProvablyFairInfo(reactionState.serverSeedHash, null, reactionState.matchId);
-    }
-  } catch (err) {
-    console.error(err);
-    alert(err.message || "Failed to start Reaction wager.");
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-async function handleReactionGameOver(reactionMs) {
-  if (
-    !supabaseClient ||
-    !currentUser ||
-    !reactionState?.inWager ||
-    !reactionState.matchId ||
-    !reactionState.playerSlot
-  ) {
-    return;
-  }
-
-  try {
-    await submitMatchScore(reactionState.matchId, reactionState.playerSlot, reactionMs);
-    const resultEl = document.getElementById("reaction-wager-result");
-    if (resultEl) {
-      resultEl.textContent = `Wager round finished. Reaction submitted: ${reactionMs} ms. Awaiting results...`;
-    }
-    
-    // Reveal Provably Fair seed
-    if (reactionState.provablyFairId) {
-      await ProvablyFair.revealGame(reactionState.provablyFairId);
-      const pfEl = document.getElementById("reaction-provably-fair");
-      if (pfEl && reactionState.serverSeedHash && reactionState.serverSeed) {
-        pfEl.innerHTML = renderProvablyFairBadge(reactionState.serverSeedHash, true);
-        pfEl.onclick = () => window.showProvablyFairInfo(reactionState.serverSeedHash, reactionState.serverSeed, reactionState.matchId);
-      }
-    }
-  } catch (err) {
-    console.error(err);
-    alert(err.message || "Failed to submit wager reaction.");
-  } finally {
-    reactionState.inWager = false;
-    reactionState.matchId = null;
-    reactionState.playerSlot = null;
-    reactionState.wagerAmount = null;
-    reactionState.gameOverReported = false;
-  }
-}
-
-// --- Flappy Race (single-player Flappy Bird style) ---
+// --- Flappy Race (original canvas Flappy Bird clone, iframe-embedded) ---
 
 function mountFlappyRace() {
   const root = document.getElementById("game-root");
   root.innerHTML = `
-    <div class="flappy-layout">
-      <div class="flappy-top">
-        <div class="small-text">Score</div>
-        <div class="flappy-score" id="flappy-score">0</div>
-
-        <!-- Mode toggle: Coins / Cash (coin option hidden for now) -->
-        <div class="mode-toggle" id="flappy-mode-toggle" style="display:none;gap:0.25rem;margin-bottom:0.35rem;">
-          <button class="btn btn-secondary" id="flappy-mode-coin" style="padding:0.2rem 0.6rem;font-size:0.75rem;">Coins</button>
-          <button class="btn btn-secondary active" id="flappy-mode-cash" style="padding:0.2rem 0.6rem;font-size:0.75rem;">Cash</button>
-        </div>
-
-        <!-- Player count selector -->
-        <div style="margin-bottom:0.35rem;">
-          <label class="small-text">Players:</label>
-          <select id="flappy-players" style="margin-left:0.5rem;padding:0.15rem 0.3rem;font-size:0.75rem;">
-            <option value="2">2 players</option>
-            <option value="3">3 players</option>
-          </select>
-        </div>
+    <div class="germs-layout">
+      <div class="germs-top">
+        <div class="small-text">Score this run</div>
+        <div class="chicken-score" id="flappy-score">0</div>
 
         <button class="btn btn-secondary" id="flappy-wager">Start Tournament</button>
 
-        <!-- Coin controls (default) -->
-        <div id="flappy-coin-controls">
-          <div class="bet-controls">
-            <button class="bet-btn" id="flappy-bet-down">-</button>
-            <span class="bet-label" id="flappy-bet-label">Entry fee: 100</span>
-            <button class="bet-btn" id="flappy-bet-up">+</button>
-          </div>
-          <div class="small-text" id="flappy-payout" style="margin-top:0.15rem; min-height:1em;"></div>
-        </div>
-
-        <!-- Cash controls (hidden by default) -->
-        <div id="flappy-cash-controls" style="display:none;">
+        <div id="flappy-cash-controls">
           <div class="bet-controls">
             <button class="bet-btn" id="flappy-cash-down">-</button>
             <span class="bet-label" id="flappy-cash-label">Entry: $1.00</span>
@@ -3654,9 +3324,8 @@ function mountFlappyRace() {
           </div>
           <div class="small-text" id="flappy-cash-payout" style="margin-top:0.15rem; min-height:1em;">Win: $1.70</div>
         </div>
-
-        <button id="flappy-restart-hidden" style="display:none;"></button>
       </div>
+
       <div class="card" data-leaderboard-card="true" style="margin-top:0.5rem; margin-bottom:0.75rem;">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
           <h3 class="section-title" style="margin-bottom:0;">Top 5 - Flappy Race</h3>
@@ -3664,368 +3333,87 @@ function mountFlappyRace() {
         </div>
         <div id="flappy-leaderboard" class="small-text" style="margin-top:0.4rem; max-height:180px; overflow-y:auto;"></div>
       </div>
-      <canvas id="flappy-canvas" width="480" height="380" class="flappy-canvas"></canvas>
-      <div class="small-text" style="margin-top:0.5rem;">Click or press space to start, then flap to stay between the pipes.</div>
+
+      <div class="flappy-frame-wrap">
+        <iframe
+          id="flappy-race-iframe"
+          src="games/flappy-race/index.html"
+          allow="autoplay"
+        ></iframe>
+      </div>
+      <div class="small-text" style="margin-top:0.5rem;">Click Start Tournament for a fresh cash run, then click START inside the game and use Space / click / tap to flap between the pipes. One hit ends the run — your final score is shown and submitted.</div>
       <div class="small-text" id="flappy-wager-result" style="margin-top:0.25rem; min-height:1em;"></div>
       <div id="flappy-provably-fair" style="margin-top:0.5rem;display:none;"></div>
     </div>
   `;
 
-  const canvas = document.getElementById("flappy-canvas");
-  const ctx = canvas.getContext("2d");
-  const scoreEl = document.getElementById("flappy-score");
   const wagerBtn = document.getElementById("flappy-wager");
-  const flappyBetDown = document.getElementById("flappy-bet-down");
-  const flappyBetUp = document.getElementById("flappy-bet-up");
-
-  // Safety: if a previous Flappy loop was running, stop it before starting a new one
-  if (flappyAnimId) {
-    cancelAnimationFrame(flappyAnimId);
-    flappyAnimId = null;
+  if (wagerBtn) {
+    wagerBtn.addEventListener("click", handleFlappyWagerClick);
   }
 
-  flappyState = {
-    birdY: canvas.height * 0.65,
-    birdVel: 0,
-    gravity: 0.045,
-    flapStrength: -2.6,
-    pipes: [],
-    pipeGap: 180,
-    pipeSpacing: 360,
-    pipeWidth: 35,
-    frame: 0,
-    firstPipeSpawned: false,
-    ticksSinceStart: 0,
-    score: 0,
-    lastPipeSpeed: 0,
-    alive: true,
-    started: false,
-    startCountdownUntil: null,
-    gameOverReported: false,
-    inWager: false,
-    matchId: null,
-    playerSlot: null, // "player1" or "player2" when in a wager
-    opponentName: null,
-    wagerAmount: null,
-    isCashMode: false,
-    cashEntry: null,
-    // Anti-cheat
-    antiCheatSession: null,
-  };
+  const cashDown = document.getElementById("flappy-cash-down");
+  const cashUp = document.getElementById("flappy-cash-up");
+  if (cashDown) cashDown.addEventListener("click", () => decreaseCashEntry());
+  if (cashUp) cashUp.addEventListener("click", () => increaseCashEntry());
 
-  function spawnPipe() {
-    const minHeight = 40;
-    const maxHeight = canvas.height - flappyState.pipeGap - 60;
-    const topHeight = minHeight + Math.random() * (maxHeight - minHeight);
-    flappyState.pipes.push({
-      x: canvas.width,
-      top: topHeight,
-      passed: false,
-    });
-  }
-
-  function resetFlappy() {
-    flappyState.birdY = canvas.height * 0.65;
-    flappyState.birdVel = 0;
-    flappyState.pipes = [];
-    flappyState.frame = 0;
-    flappyState.firstPipeSpawned = false;
-    flappyState.ticksSinceStart = 0;
-    flappyState.score = 0;
-    flappyState.alive = true;
-    flappyState.started = false;
-    flappyState.startCountdownUntil = null;
-    flappyState.gameOverReported = false;
-    scoreEl.textContent = "0";
-  }
-
-  function flap() {
-    // Only allow play when a wager is active
-    if (!flappyState.inWager) {
-      const resultEl = document.getElementById("flappy-wager-result");
-      if (resultEl) {
-        resultEl.textContent = "Start a wager to play this game.";
-      }
-      return;
-    }
-    if (!flappyState.alive) return;
-    
-    // Anti-cheat: Record action and check for bot behavior
-    if (flappyState.antiCheatSession) {
-      const result = AntiCheat.recordAction(flappyState.antiCheatSession, 'click');
-      if (!result.allowed) {
-        // Cheater detected - kill the bird
-        flappyState.alive = false;
-        return;
-      }
-    }
-    
-    if (!flappyState.started) {
-      // First input: start the run immediately and apply the first flap.
-      flappyState.started = true;
-      flappyState.ticksSinceStart = 0;
-      // Spawn the very first pipe right away so the run begins immediately.
-      if (!flappyState.firstPipeSpawned) {
-        spawnPipe();
-        flappyState.firstPipeSpawned = true;
-      }
-    }
-
-    flappyState.birdVel = flappyState.flapStrength;
-  }
-
-  function update() {
-    const s = flappyState;
-    s.frame++;
-
-    // If the run hasn't started yet, wait for the first flap.
-    if (!s.started) {
-      return;
-    }
-
-    // Track how long we've been in the active run
-    s.ticksSinceStart++;
-
-    // Difficulty ramp: as score increases, slightly shrink the gap and
-    // speed pipes up. Spacing (distance between pipes) stays constant.
-    let currentGap = flappyState.pipeGap; // base gap from initial state (e.g. 190)
-
-    if (s.score >= 50) {
-      currentGap -= 40;
-    } else if (s.score >= 40) {
-      currentGap -= 32;
-    } else if (s.score >= 30) {
-      currentGap -= 24;
-    } else if (s.score >= 20) {
-      currentGap -= 16;
-    }
-
-    // Don't let the gap get ridiculously small
-    currentGap = Math.max(currentGap, 120);
-    flappyState.pipeGap = currentGap;
-
-    const spacingFrames = Math.round(s.pipeSpacing / 2);
-    if (s.frame % spacingFrames === 0) {
-      spawnPipe();
-      s.firstPipeSpawned = true;
-    }
-
-    // Use a single gentle gravity for the whole run so the jump feels consistent.
-    s.birdVel += s.gravity;
-    s.birdY += s.birdVel;
-
-    // Pipes start at a faster base speed and ramp up slightly more with score.
-    const pipeSpeed = 2.8 + Math.min(s.score, 50) * 0.03;
-    s.lastPipeSpeed = pipeSpeed;
-    s.pipes.forEach((p) => {
-      p.x -= pipeSpeed;
-    });
-    s.pipes = s.pipes.filter((p) => p.x + flappyState.pipeWidth > -10);
-
-    const birdX = 80;
-    const birdR = 10;
-
-    if (s.birdY + birdR > canvas.height || s.birdY - birdR < 0) {
-      s.alive = false;
-    }
-
-    s.pipes.forEach((p) => {
-      const inXRange = birdX + birdR > p.x && birdX - birdR < p.x + s.pipeWidth;
-      const inTop = s.birdY - birdR < p.top;
-      const inBottom = s.birdY + birdR > p.top + s.pipeGap;
-      if (inXRange && (inTop || inBottom)) {
-        s.alive = false;
-      }
-
-      if (!p.passed && p.x + s.pipeWidth < birdX) {
-        p.passed = true;
-        s.score += 1;
-        scoreEl.textContent = String(s.score);
-      }
-    });
-
-    if (!s.alive && !s.gameOverReported) {
-      s.gameOverReported = true;
-      handleFlappyGameOver();
-    }
-  }
-
-  function draw() {
-    const s = flappyState;
-    if (!s) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    ctx.fillStyle = "#0f172a";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.fillStyle = "#22c55e";
-    s.pipes.forEach((p) => {
-      ctx.fillRect(p.x, 0, s.pipeWidth, p.top);
-      ctx.fillRect(p.x, p.top + s.pipeGap, s.pipeWidth, canvas.height - (p.top + s.pipeGap));
-    });
-
-    ctx.fillStyle = "#fde047";
-    const birdX = 80;
-    const birdR = 10;
-    ctx.beginPath();
-    ctx.arc(birdX, s.birdY, birdR, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "#e5e7eb";
-    ctx.font = "14px system-ui";
-    ctx.fillText(`Score: ${s.score}`, canvas.width - 110, 24);
-
-    // Active wager banner in the HUD
-    if (s.inWager && s.matchId) {
-      ctx.fillStyle = "#1e293b";
-      ctx.fillRect(8, 8, 220, 32);
-      ctx.fillStyle = "#e5e7eb";
-      ctx.font = "11px system-ui";
-      const oppLabel = s.opponentName
-        ? `vs ${s.opponentName}`
-        : "Matching opponent...";
-      // Show cash or coin amount
-      let bannerText;
-      if (s.isCashMode && s.cashEntry) {
-        bannerText = `$${s.cashEntry.toFixed(2)} cash entry`;
-      } else {
-        const bannerAmount = s.wagerAmount || getCurrentWagerAmount();
-        bannerText = `${bannerAmount}-coin wager`;
-      }
-      ctx.fillText(bannerText, 14, 22);
-      ctx.fillText(oppLabel, 14, 34);
-    }
-
-    // Debug: show current pipe speed so we can confirm it's identical
-    // between wager and non-wager runs.
-    ctx.font = "10px system-ui";
-    ctx.fillText(`Spd: ${s.lastPipeSpeed.toFixed(2)}`, canvas.width - 110, 38);
-
-    if (!s.started) {
-      // Show simple ready text before the first flap
-      ctx.fillStyle = "rgba(15,23,42,0.7)";
-      ctx.fillRect(0, canvas.height / 2 - 30, canvas.width, 60);
-      ctx.fillStyle = "#e5e7eb";
-      ctx.font = "16px system-ui";
-      const text = "Click or press space to start";
-      const textWidth = ctx.measureText(text).width;
-      ctx.fillText(text, canvas.width / 2 - textWidth / 2, canvas.height / 2 + 5);
-    } else if (!s.alive) {
-      ctx.fillStyle = "rgba(15,23,42,0.7)";
-      ctx.fillRect(0, canvas.height / 2 - 30, canvas.width, 60);
-      ctx.fillStyle = "#e5e7eb";
-      ctx.font = "16px system-ui";
-      const text = "Game over - press Restart";
-      const textWidth = ctx.measureText(text).width;
-      ctx.fillText(text, canvas.width / 2 - textWidth / 2, canvas.height / 2 + 5);
-    }
-  }
-
-  function loop() {
-    if (flappyState && flappyState.alive) {
-      update();
-    }
-    draw();
-    flappyAnimId = requestAnimationFrame(loop);
-  }
-
-  resetFlappy();
-  loop();
-
-  // If we have a pending join/start from history or a new wager, attach it now.
-  if (pendingFlappyJoin && pendingFlappyJoin.matchId && pendingFlappyJoin.slot) {
-    flappyState.inWager = true;
-    flappyState.matchId = pendingFlappyJoin.matchId;
-    flappyState.gameOverReported = false;
-    flappyState.playerSlot = pendingFlappyJoin.slot; // "player1" or "player2"
-    flappyState.isCashMode = pendingFlappyJoin.isCashMode || false;
-    flappyState.cashEntry = pendingFlappyJoin.cashEntry || null;
-    pendingFlappyJoin = null;
-    const resultEl = document.getElementById("flappy-wager-result");
-    if (resultEl) {
-      resultEl.textContent = "Match attached. Finish your run to record your score.";
-    }
-  }
-
-  if (flappyState.inWager && wagerBtn) {
-    wagerBtn.style.display = "none";
-  }
-
-  function handleKey(e) {
-    if (e.code === "Space") {
-      e.preventDefault();
-      flap();
-    }
-  }
-
-  function handleClick() {
-    flap();
-  }
-
-  canvas.addEventListener("mousedown", handleClick);
-  window.addEventListener("keydown", handleKey);
-
-  const restartHidden = document.getElementById("flappy-restart-hidden");
-  if (restartHidden) {
-    restartHidden.addEventListener("click", () => {
-      resetFlappy();
-    });
-  }
-
-  document.getElementById("flappy-wager").addEventListener("click", handleFlappyWagerClick);
-
-  if (flappyBetDown) {
-    flappyBetDown.addEventListener("click", decreaseWagerAmount);
-  }
-  if (flappyBetUp) {
-    flappyBetUp.addEventListener("click", increaseWagerAmount);
-  }
-
-  // Cash entry controls
-  const flappyCashDown = document.getElementById("flappy-cash-down");
-  const flappyCashUp = document.getElementById("flappy-cash-up");
-  if (flappyCashDown) {
-    flappyCashDown.addEventListener("click", decreaseCashEntry);
-  }
-  if (flappyCashUp) {
-    flappyCashUp.addEventListener("click", increaseCashEntry);
-  }
-
-  // Mode toggle: Coins / Cash
-  const modeCoinBtn = document.getElementById("flappy-mode-coin");
-  const modeCashBtn = document.getElementById("flappy-mode-cash");
-  if (modeCoinBtn) {
-    modeCoinBtn.addEventListener("click", () => setFlappyWagerMode("coin"));
-  }
-  if (modeCashBtn) {
-    modeCashBtn.addEventListener("click", () => setFlappyWagerMode("cash"));
-  }
-
-  // Player count selector
-  const flappyPlayersSelect = document.getElementById("flappy-players");
-  if (flappyPlayersSelect) {
-    flappyPlayersSelect.addEventListener("change", () => {
-      updateWagerButtons();
-      updateFlappyCashUI();
-    });
-  }
-
-  // Initialize to current mode
-  setFlappyWagerMode(flappyWagerMode);
-
-  // Ensure button labels reflect the current wager amount
-  updateWagerButtons();
   updateFlappyCashUI();
 
-  // Load leaderboard for this game
   loadLeaderboardForGame("flappy-race", "flappy-leaderboard");
-
   const lbRefresh = document.getElementById("flappy-leaderboard-refresh");
   if (lbRefresh) {
     lbRefresh.addEventListener("click", () => {
       loadLeaderboardForGame("flappy-race", "flappy-leaderboard");
     });
   }
+
+  if (flappyMessageHandler) {
+    window.removeEventListener("message", flappyMessageHandler);
+  }
+  flappyMessageHandler = (event) => {
+    if (!event.data || event.data.type !== "flappy-race-gameover") return;
+    const iframe = document.getElementById("flappy-race-iframe");
+    if (!iframe || event.source !== iframe.contentWindow) return;
+
+    const score = Number(event.data.score) || 0;
+    const scoreEl = document.getElementById("flappy-score");
+    if (scoreEl) scoreEl.textContent = String(score);
+
+    handleFlappyGameOver(score);
+  };
+  window.addEventListener("message", flappyMessageHandler);
+
+  if (flappyState && flappyState.inWager) {
+    if (wagerBtn) wagerBtn.style.display = "none";
+    if (flappyState.serverSeedHash) {
+      const pfEl = document.getElementById("flappy-provably-fair");
+      if (pfEl) {
+        pfEl.style.display = "block";
+        pfEl.innerHTML = renderProvablyFairBadge(flappyState.serverSeedHash, true);
+        pfEl.onclick = () => window.showProvablyFairInfo(flappyState.serverSeedHash, flappyState.serverSeed, flappyState.matchId);
+      }
+    }
+  }
+}
+
+function updateFlappyCashUI() {
+  const entry = getCurrentCashEntry();
+  const total = entry * 2;
+  const fee = total * 0.15;
+  const payout = total - fee;
+
+  const cashLabel = document.getElementById("flappy-cash-label");
+  if (cashLabel) {
+    cashLabel.textContent = `Entry: $${entry.toFixed(2)}`;
+  }
+  const cashPayout = document.getElementById("flappy-cash-payout");
+  if (cashPayout) {
+    cashPayout.textContent = `Win: $${payout.toFixed(2)}`;
+  }
+  const cashUp = document.getElementById("flappy-cash-up");
+  const cashDown = document.getElementById("flappy-cash-down");
+  if (cashUp) cashUp.disabled = currentCashEntryIndex >= CASH_ENTRY_AMOUNTS.length - 1;
+  if (cashDown) cashDown.disabled = currentCashEntryIndex <= 0;
 }
 
 async function handleFlappyWagerClick() {
@@ -4034,23 +3422,19 @@ async function handleFlappyWagerClick() {
     return;
   }
 
-  // Check if player is banned
   const canPlay = await checkBanBeforeGame('flappy_race');
   if (!canPlay) return;
 
   const btn = document.getElementById("flappy-wager");
   if (!btn) return;
-  const modeToggle = document.querySelector(".mode-toggle");
 
-  const isCashMode = flappyWagerMode === "cash";
-  const wagerAmount = isCashMode ? null : getCurrentWagerAmount();
-  const cashEntry = isCashMode ? getCurrentCashEntry() : null;
+  const cashEntry = getCurrentCashEntry();
 
   const now = Date.now();
   const last = lastWagerAtByGame["flappy-race"] || 0;
   if (now - last < WAGER_COOLDOWN_MS) {
     const remaining = Math.ceil((WAGER_COOLDOWN_MS - (now - last)) / 1000);
-    alert(`Please wait ${remaining}s before starting another Flappy tournament.`);
+    alert(`Please wait ${remaining}s before starting another Flappy Race tournament.`);
     return;
   }
 
@@ -4060,124 +3444,57 @@ async function handleFlappyWagerClick() {
     return;
   }
 
-  // Balance check
-  if (isCashMode) {
-    if ((currentUser.cash_balance ?? 0) < cashEntry) {
-      alert(`Not enough cash for a $${cashEntry.toFixed(2)} entry. Please deposit more.`);
-      return;
-    }
-  } else {
-    if ((currentUser.coin_balance ?? 0) < wagerAmount) {
-      alert(`Not enough coins for a ${wagerAmount}-coin wager.`);
-      return;
-    }
+  if ((currentUser.cash_balance ?? 0) < cashEntry) {
+    alert(`Not enough cash for a $${cashEntry.toFixed(2)} entry. Please deposit more.`);
+    return;
   }
 
   btn.disabled = true;
   btn.style.display = "none";
-  if (modeToggle) {
-    modeToggle.style.display = "none";
-  }
 
   try {
-    let match, slot;
-
-    if (isCashMode) {
-      // Cash mode: call rpc_join_cash_match (deducts cash_balance server-side)
-      match = await createCashMatchForGame("flappy-race", cashEntry);
-      if (!match) {
-        throw new Error("Could not create cash match.");
-      }
-      // Determine slot based on which player we are
-      slot = match.player2_id === currentUser.id ? "player2" : "player1";
-      // Refresh user data to get updated cash_balance
-      await loadCurrentUser();
-    } else {
-      // Coin mode: existing flow
-      const result = await findOrCreateFlappyMatch(wagerAmount);
-      match = result.match;
-      slot = result.slot;
-      if (!match || !slot) {
-        throw new Error("Could not start or join a wager match.");
-      }
-      // Pay the wager up front from this player's balance
-      await adjustCurrentUserCoins(-wagerAmount);
+    const match = await createCashMatchForGame("flappy-race", cashEntry);
+    if (!match) {
+      throw new Error("Could not create cash match.");
     }
+    const slot = match.player2_id === currentUser.id ? "player2" : "player1";
 
-    // Stash this match so that if a render() happens,
-    // mountFlappyRace can re-attach the wager state and keep the button hidden.
-    pendingFlappyJoin = { matchId: match.id, slot, isCashMode, cashEntry };
-
-    // Record cooldown timestamp for this game
     lastWagerAtByGame["flappy-race"] = now;
 
-    if (flappyState) {
-      flappyState.inWager = true;
-      flappyState.matchId = match.id;
-      flappyState.playerSlot = slot;
-      flappyState.opponentName = null;
-      flappyState.gameOverReported = false;
-      flappyState.wagerAmount = isCashMode ? null : wagerAmount;
-      flappyState.cashEntry = isCashMode ? cashEntry : null;
-      flappyState.isCashMode = isCashMode;
-      // Provably Fair data
-      flappyState.provablyFairId = match.provablyFairId || null;
-      flappyState.serverSeedHash = match.serverSeedHash || null;
-      flappyState.serverSeed = match.serverSeed || null;
-      // Create anti-cheat session for this game
-      flappyState.antiCheatSession = AntiCheat.createSession('flappy_race', match.id, currentUser.id);
+    flappyState = flappyState || {};
+    flappyState.inWager = true;
+    flappyState.matchId = match.id;
+    flappyState.playerSlot = slot;
+    flappyState.gameOverReported = false;
+    flappyState.cashEntry = cashEntry;
+    flappyState.score = 0;
+    flappyState.provablyFairId = match.provablyFairId || null;
+    flappyState.serverSeedHash = match.serverSeedHash || null;
+    flappyState.serverSeed = match.serverSeed || null;
 
-      if (btn) {
-        btn.style.display = "none";
-      }
-      if (modeToggle) {
-        modeToggle.style.display = "none";
-      }
+    await loadCurrentUser();
 
-      // Load opponent usernames for HUD banner (supports 2 or 3 players)
-      try {
-        const oppIds = [];
-        if (match.player1_id && match.player1_id !== currentUser.id) oppIds.push(match.player1_id);
-        if (match.player2_id && match.player2_id !== currentUser.id) oppIds.push(match.player2_id);
-        if (match.player3_id && match.player3_id !== currentUser.id) oppIds.push(match.player3_id);
-        
-        if (oppIds.length > 0) {
-          const { data: oppProfiles, error: oppError } = await supabaseClient
-            .from("profiles")
-            .select("username")
-            .in("id", oppIds);
-          if (!oppError && oppProfiles && oppProfiles.length > 0) {
-            const names = oppProfiles.map(p => p.username || "Player").join(" & ");
-            flappyState.opponentName = names;
-          }
-        }
-      } catch (e) {
-        console.error("Failed to load opponents for Flappy wager banner", e);
-      }
+    // Force a fresh run for this wager and seed the game with the shared
+    // match id so both players face the exact same pipe-gap sequence —
+    // pure skill decides the winner.
+    const iframe = document.getElementById("flappy-race-iframe");
+    if (iframe) {
+      iframe.src = `games/flappy-race/index.html?seed=${encodeURIComponent(match.id)}`;
+    }
 
-      // Start a fresh run for this wager via hidden restart button
-      const restartHidden = document.getElementById("flappy-restart-hidden");
-      if (restartHidden) {
-        restartHidden.click();
-      }
+    const scoreEl = document.getElementById("flappy-score");
+    if (scoreEl) scoreEl.textContent = "0";
 
-      const resultEl = document.getElementById("flappy-wager-result");
-      if (resultEl) {
-        const modeLabel = isCashMode ? `$${cashEntry.toFixed(2)} cash` : `${wagerAmount}-coin`;
-        if (slot === "player2") {
-          resultEl.textContent = `Match found (${modeLabel})! Finish your run to record your score.`;
-        } else {
-          resultEl.textContent = `Match created (${modeLabel}). Finish your run to record your score.`;
-        }
-      }
-      
-      // Show Provably Fair badge
-      const pfEl = document.getElementById("flappy-provably-fair");
-      if (pfEl && flappyState.serverSeedHash) {
-        pfEl.style.display = "block";
-        pfEl.innerHTML = renderProvablyFairBadge(flappyState.serverSeedHash, true);
-        pfEl.onclick = () => window.showProvablyFairInfo(flappyState.serverSeedHash, null, flappyState.matchId);
-      }
+    const resultEl = document.getElementById("flappy-wager-result");
+    if (resultEl) {
+      resultEl.textContent = `Match ${slot === "player2" ? "found" : "created"} ($${cashEntry.toFixed(2)} cash). Click START inside the game — your score at the first crash is submitted.`;
+    }
+
+    const pfEl = document.getElementById("flappy-provably-fair");
+    if (pfEl && flappyState.serverSeedHash) {
+      pfEl.style.display = "block";
+      pfEl.innerHTML = renderProvablyFairBadge(flappyState.serverSeedHash, true);
+      pfEl.onclick = () => window.showProvablyFairInfo(flappyState.serverSeedHash, null, flappyState.matchId);
     }
   } catch (err) {
     console.error(err);
@@ -4189,31 +3506,30 @@ async function handleFlappyWagerClick() {
   }
 }
 
-async function handleFlappyGameOver() {
+async function handleFlappyGameOver(score) {
   if (
     !supabaseClient ||
     !currentUser ||
     !flappyState?.inWager ||
     !flappyState.matchId ||
-    !flappyState.playerSlot
+    !flappyState.playerSlot ||
+    flappyState.gameOverReported
   ) {
     return;
   }
 
-  const wasCashMode = flappyState.isCashMode;
+  flappyState.gameOverReported = true;
+  flappyState.score = score;
+
   const cashEntry = flappyState.cashEntry;
 
-  const matchIdToCheck = flappyState.matchId;
-  
   try {
-    await submitMatchScore(flappyState.matchId, flappyState.playerSlot, flappyState.score);
+    await submitMatchScore(flappyState.matchId, flappyState.playerSlot, score);
     const resultEl = document.getElementById("flappy-wager-result");
     if (resultEl) {
-      const modeLabel = wasCashMode && cashEntry ? `$${cashEntry.toFixed(2)} cash` : "coin";
-      resultEl.textContent = `${modeLabel} run finished. Score: ${flappyState.score}. Awaiting other players...`;
+      resultEl.textContent = `$${cashEntry.toFixed(2)} cash run finished. Score: ${score}. Awaiting other player...`;
     }
-    
-    // Reveal Provably Fair seed
+
     if (flappyState.provablyFairId) {
       await ProvablyFair.revealGame(flappyState.provablyFairId);
       const pfEl = document.getElementById("flappy-provably-fair");
@@ -4222,9 +3538,6 @@ async function handleFlappyGameOver() {
         pfEl.onclick = () => window.showProvablyFairInfo(flappyState.serverSeedHash, flappyState.serverSeed, flappyState.matchId);
       }
     }
-    
-    // Start polling for match completion (for 3-player games especially)
-    pollForMatchResult(matchIdToCheck);
   } catch (err) {
     console.error(err);
     alert(err.message || "Failed to submit wager score.");
@@ -4232,1204 +3545,16 @@ async function handleFlappyGameOver() {
     flappyState.inWager = false;
     flappyState.matchId = null;
     flappyState.playerSlot = null;
-    flappyState.isCashMode = false;
     flappyState.cashEntry = null;
-
-    // Clear pending join so re-entering the game doesn't re-attach old match
-    pendingFlappyJoin = null;
 
     const btn = document.getElementById("flappy-wager");
     if (btn) {
       btn.disabled = false;
       btn.style.display = "";
     }
-    // Re-show mode toggle
-    const modeToggle = document.querySelector(".mode-toggle");
-    if (modeToggle) {
-      modeToggle.style.display = "";
-    }
-    // Re-show the appropriate entry controls based on current mode
-    setFlappyWagerMode(flappyWagerMode);
   }
 }
 
-// Poll for match result completion (handles 3-player games)
-async function pollForMatchResult(matchId, attempts = 0) {
-  if (!supabaseClient || !currentUser || attempts > 30) return; // Max 30 attempts (60 seconds)
-  
-  try {
-    const { data: match, error } = await supabaseClient
-      .from("matches")
-      .select("id, game_id, wager, cash_entry, currency, status, player1_id, player2_id, player3_id, player1_score, player2_score, player3_score, max_players, winner_id")
-      .eq("id", matchId)
-      .single();
-    
-    if (error || !match) return;
-    
-    // If match already complete, show result
-    if (match.status === "complete" && match.winner_id !== undefined) {
-      await loadCurrentUser();
-      const resultEl = document.getElementById("flappy-wager-result");
-      if (resultEl) {
-        const isCashMatch = match.currency === "CASH";
-        const entryAmount = isCashMatch ? match.cash_entry : match.wager;
-        const playerCount = match.max_players || 2;
-        const total = entryAmount * playerCount;
-        const fee = isCashMatch ? (total * 0.15) : Math.round(total * 0.15);
-        const prize = total - fee;
-        
-        if (!match.winner_id) {
-          resultEl.innerHTML = `<span style="color:#fbbf24;font-weight:bold;">🤝 TIE!</span> Entry refunded`;
-        } else if (match.winner_id === currentUser.id) {
-          const prizeLabel = isCashMatch ? `$${prize.toFixed(2)}` : `${prize} coins`;
-          resultEl.innerHTML = `<span style="color:#22c55e;font-weight:bold;">🏆 YOU WON!</span> +${prizeLabel}`;
-        } else {
-          const lossLabel = isCashMatch ? `$${entryAmount.toFixed(2)}` : `${entryAmount} coins`;
-          resultEl.innerHTML = `<span style="color:#ef4444;font-weight:bold;">😢 YOU LOST</span> -${lossLabel}`;
-        }
-      }
-      return;
-    }
-    
-    // Check if all scores are in - if so, try to determine winner
-    const maxPlayers = match.max_players || 2;
-    const allScoresIn = match.player1_score !== null && 
-                        match.player2_score !== null &&
-                        (maxPlayers < 3 || match.player3_score !== null);
-    
-    if (allScoresIn && !match.winner_id) {
-      // All scores in, determine winner
-      const scores = [
-        { id: match.player1_id, score: match.player1_score || 0 },
-        { id: match.player2_id, score: match.player2_score || 0 },
-      ];
-      if (match.player3_id) {
-        scores.push({ id: match.player3_id, score: match.player3_score || 0 });
-      }
-      scores.sort((a, b) => b.score - a.score);
-      
-      const winnerId = scores[0].score > scores[1].score ? scores[0].id : null;
-      
-      // Update match with winner
-      await supabaseClient
-        .from("matches")
-        .update({ status: "complete", winner_id: winnerId })
-        .eq("id", matchId);
-      
-      // Settle the match
-      try {
-        await supabaseClient.rpc("rpc_settle_match", { p_match_id: matchId });
-      } catch (e) {
-        console.error("Failed to settle match", e);
-      }
-      
-      // Refresh and show result
-      await loadCurrentUser();
-      pollForMatchResult(matchId, 30); // Final check
-      return;
-    }
-    
-    // Still waiting - poll again in 2 seconds
-    setTimeout(() => pollForMatchResult(matchId, attempts + 1), 2000);
-  } catch (e) {
-    console.error("Poll error:", e);
-  }
-}
-
-async function handleFlappyPageExit() {
-  if (
-    !supabaseClient ||
-    !currentUser
-  ) {
-    return;
-  }
-
-  // Flappy Race auto-submit
-  if (
-    flappyState &&
-    flappyState.inWager &&
-    flappyState.matchId &&
-    flappyState.playerSlot
-  ) {
-    try {
-      await submitMatchScore(
-        flappyState.matchId,
-        flappyState.playerSlot,
-        flappyState.score
-      );
-    } catch (e) {
-      console.error("Failed to submit Flappy score on page exit", e);
-    }
-    // Clear pending join after submitting
-    pendingFlappyJoin = null;
-  }
-
-  // Stack Duel auto-submit
-  if (
-    stackState &&
-    stackState.inWager &&
-    stackState.matchId &&
-    stackState.playerSlot
-  ) {
-    try {
-      await submitMatchScore(
-        stackState.matchId,
-        stackState.playerSlot,
-        stackState.score
-      );
-    } catch (e) {
-      console.error("Failed to submit Stack Duel score on page exit", e);
-    }
-  }
-
-  // Chicken Run auto-submit (distance score)
-  if (
-    chickenState &&
-    chickenState.inWager &&
-    chickenState.matchId &&
-    chickenState.playerSlot
-  ) {
-    try {
-      await submitMatchScore(
-        chickenState.matchId,
-        chickenState.playerSlot,
-        chickenState.score
-      );
-    } catch (e) {
-      console.error("Failed to submit Chicken Run score on page exit", e);
-    }
-  }
-}
-
-// --- Stack Duel (single-player tower stack) ---
-
-function mountStackDuel() {
-  const root = document.getElementById("game-root");
-  root.innerHTML = `
-    <div class="stack-layout">
-      <div class="stack-top">
-        <div class="small-text">Height</div>
-        <div class="stack-score" id="stack-score">0</div>
-        <button class="btn btn-secondary" id="stack-wager">Start Tournament</button>
-        <!-- Coin controls hidden for now -->
-        <div id="stack-coin-controls" style="display:none;">
-          <div class="bet-controls">
-            <button class="bet-btn" id="stack-bet-down">-</button>
-            <span class="bet-label" id="stack-bet-label">Entry fee: 100</span>
-            <button class="bet-btn" id="stack-bet-up">+</button>
-          </div>
-          <div class="small-text" id="stack-payout" style="margin-top:0.15rem; min-height:1em;"></div>
-        </div>
-        <!-- Cash entry controls -->
-        <div id="stack-cash-controls">
-          <div class="bet-controls">
-            <button class="bet-btn" id="stack-cash-down">-</button>
-            <span class="bet-label" id="stack-cash-label">Entry: $1.00</span>
-            <button class="bet-btn" id="stack-cash-up">+</button>
-          </div>
-          <div class="small-text" id="stack-cash-payout" style="margin-top:0.15rem; min-height:1em;">Win: $1.70</div>
-        </div>
-        <button id="stack-restart-hidden" style="display:none;"></button>
-      </div>
-      <div class="card" data-leaderboard-card="true" style="margin-top:0.5rem; margin-bottom:0.75rem;">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
-          <h3 class="section-title" style="margin-bottom:0;">Top 5 - Stack Duel</h3>
-          <button id="stack-leaderboard-refresh" class="btn btn-secondary" style="padding:0.2rem 0.6rem;font-size:0.7rem;">Refresh</button>
-        </div>
-        <div id="stack-leaderboard" class="small-text" style="margin-top:0.4rem; max-height:180px; overflow-y:auto;"></div>
-      </div>
-      <div class="stack-help small-text">Click to drop the moving block. The misaligned part falls off, and the next block gets smaller.</div>
-      <canvas id="stack-canvas" width="360" height="320" class="stack-canvas"></canvas>
-      <div class="small-text" id="stack-wager-result" style="margin-top:0.25rem; min-height:1em;"></div>
-      <div id="stack-provably-fair" style="margin-top:0.5rem;display:none;"></div>
-    </div>
-  `;
-
-  const canvas = document.getElementById("stack-canvas");
-  const ctx = canvas.getContext("2d");
-  const scoreEl = document.getElementById("stack-score");
-  const wagerBtn = document.getElementById("stack-wager");
-  const stackBetDown = document.getElementById("stack-bet-down");
-  const stackBetUp = document.getElementById("stack-bet-up");
-
-  // Safety: if a previous Stack Duel loop was running, stop it before starting a new one
-  if (stackAnimId) {
-    cancelAnimationFrame(stackAnimId);
-    stackAnimId = null;
-  }
-
-  stackState = {
-    blocks: [],
-    active: null,
-    speed: 1.4,
-    direction: 1,
-    levelHeight: 16,
-    score: 0,
-    running: true,
-    cameraOffset: 0,
-    inWager: false,
-    matchId: null,
-    playerSlot: null,
-    opponentName: null,
-    gameOverReported: false,
-    wagerAmount: null,
-    isCashMode: false,
-    cashEntry: null,
-    // Anti-cheat
-    antiCheatSession: null,
-  };
-
-  function initStack() {
-    stackState.blocks = [];
-    stackState.speed = 1.4;
-    stackState.direction = 1;
-    const baseWidth = 200;
-    const baseX = (canvas.width - baseWidth) / 2;
-    const baseY = canvas.height - stackState.levelHeight;
-    stackState.blocks.push({ x: baseX, y: baseY, width: baseWidth });
-    spawnActive();
-    stackState.score = 1;
-    scoreEl.textContent = String(stackState.score);
-    stackState.running = true;
-    stackState.cameraOffset = 0;
-    const resultEl = document.getElementById("stack-wager-result");
-    if (resultEl) {
-      resultEl.textContent = "";
-    }
-  }
-
-  function spawnActive() {
-    const last = stackState.blocks[stackState.blocks.length - 1];
-    const width = last.width;
-    const y = last.y - stackState.levelHeight;
-    const startX = 10;
-    stackState.active = { x: startX, y, width };
-    stackState.direction = 1;
-  }
-
-  function dropActive() {
-    // Only allow play when a wager is active
-    if (!stackState.inWager) {
-      const resultEl = document.getElementById("stack-wager-result");
-      if (resultEl) {
-        resultEl.textContent = "Start a wager to play this game.";
-      }
-      return;
-    }
-    if (!stackState.active || !stackState.running) return;
-    
-    // Anti-cheat: Record action and check for bot behavior
-    if (stackState.antiCheatSession) {
-      const result = AntiCheat.recordAction(stackState.antiCheatSession, 'click');
-      if (!result.allowed) {
-        // Cheater detected - end game
-        stackState.running = false;
-        stackState.active = null;
-        return;
-      }
-    }
-
-    const last = stackState.blocks[stackState.blocks.length - 1];
-    const a = stackState.active;
-
-    const overlapLeft = Math.max(a.x, last.x);
-    const overlapRight = Math.min(a.x + a.width, last.x + last.width);
-    const overlapWidth = overlapRight - overlapLeft;
-
-    if (overlapWidth <= 8) {
-      // Missed too much -> game over
-      stackState.running = false;
-      stackState.active = null;
-      // If this was a wager run, trigger game-over handling once.
-      if (
-        supabaseClient &&
-        currentUser &&
-        stackState.inWager &&
-        stackState.matchId &&
-        stackState.playerSlot &&
-        !stackState.gameOverReported
-      ) {
-        stackState.gameOverReported = true;
-        // Fire and forget; any errors are handled inside handleStackGameOver.
-        handleStackGameOver();
-      }
-      return;
-    }
-
-    stackState.blocks.push({ x: overlapLeft, y: a.y, width: overlapWidth });
-    stackState.score = stackState.blocks.length;
-    scoreEl.textContent = String(stackState.score);
-
-    // Slightly increase speed and spawn next (gradual ramp-up)
-    stackState.speed = Math.min(stackState.speed + 0.08, 3.5);
-    spawnActive();
-  }
-
-  function updateStack() {
-    if (!stackState.running || !stackState.active) return;
-
-    const a = stackState.active;
-    a.x += stackState.speed * stackState.direction;
-
-    if (a.x <= 0) {
-      a.x = 0;
-      stackState.direction = 1;
-    } else if (a.x + a.width >= canvas.width) {
-      a.x = canvas.width - a.width;
-      stackState.direction = -1;
-    }
-
-    // Move camera so the active block stays near a fixed height, even for very tall towers
-    const topVisibleThreshold = 70;
-    const desiredOffset = a.y - topVisibleThreshold;
-    stackState.cameraOffset = desiredOffset;
-  }
-
-  function drawStack() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#020617";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Draw stacked blocks with vertical camera offset
-    stackState.blocks.forEach((b, i) => {
-      const t = i / Math.max(1, stackState.blocks.length - 1);
-      const drawY = b.y - stackState.cameraOffset;
-      if (drawY + stackState.levelHeight < 0 || drawY > canvas.height) return;
-      ctx.fillStyle = `hsl(${200 + t * 80}, 70%, 55%)`;
-      ctx.fillRect(b.x, drawY, b.width, stackState.levelHeight);
-    });
-
-    // Active block
-    if (stackState.active) {
-      ctx.fillStyle = "#f97316";
-      const drawY = stackState.active.y - stackState.cameraOffset;
-      ctx.fillRect(
-        stackState.active.x,
-        drawY,
-        stackState.active.width,
-        stackState.levelHeight
-      );
-    }
-
-    // Active wager banner in the HUD
-    if (stackState.inWager && stackState.matchId) {
-      const bannerAmount = stackState.wagerAmount || getCurrentWagerAmount();
-      ctx.fillStyle = "#1e293b";
-      ctx.fillRect(8, 8, 220, 32);
-      ctx.fillStyle = "#e5e7eb";
-      ctx.font = "11px system-ui";
-      const oppLabel = stackState.opponentName
-        ? `vs ${stackState.opponentName}`
-        : "Matching opponent...";
-      ctx.fillText(`${bannerAmount}-coin wager`, 14, 22);
-      ctx.fillText(oppLabel, 14, 34);
-    }
-
-    if (!stackState.running) {
-      ctx.fillStyle = "rgba(15,23,42,0.72)";
-      ctx.fillRect(0, canvas.height / 2 - 30, canvas.width, 60);
-      ctx.fillStyle = "#e5e7eb";
-      ctx.font = "16px system-ui";
-      const text = "Tower fell - press Restart";
-      const textWidth = ctx.measureText(text).width;
-      ctx.fillText(text, canvas.width / 2 - textWidth / 2, canvas.height / 2 + 5);
-    }
-  }
-
-  function loop() {
-    updateStack();
-    drawStack();
-    stackAnimId = requestAnimationFrame(loop);
-  }
-
-  initStack();
-  loop();
-
-  function handleClick() {
-    dropActive();
-  }
-
-  canvas.addEventListener("mousedown", handleClick);
-  window.addEventListener("keydown", (e) => {
-    if (e.code === "Space") {
-      e.preventDefault();
-      dropActive();
-    }
-  });
-
-  const stackRestartHidden = document.getElementById("stack-restart-hidden");
-  if (stackRestartHidden) {
-    stackRestartHidden.addEventListener("click", () => {
-      initStack();
-      stackState.gameOverReported = false;
-    });
-  }
-
-  // Attach any pending wager join created before this mount.
-  if (pendingStackJoin && pendingStackJoin.matchId && pendingStackJoin.slot) {
-    stackState.inWager = true;
-    stackState.matchId = pendingStackJoin.matchId;
-    stackState.playerSlot = pendingStackJoin.slot;
-    stackState.gameOverReported = false;
-    stackState.isCashMode = pendingStackJoin.isCashMode || false;
-    stackState.cashEntry = pendingStackJoin.cashEntry || null;
-    pendingStackJoin = null;
-    const resultEl = document.getElementById("stack-wager-result");
-    if (resultEl) {
-      resultEl.textContent = "Match attached. Finish your run to record your score.";
-    }
-  }
-
-  if (stackState.inWager && wagerBtn) {
-    wagerBtn.style.display = "none";
-  }
-
-  // Hide wager toggle while a wager is active
-  const stackToggleBtn = document.getElementById("stack-wager-toggle");
-  if (stackState.inWager && stackToggleBtn) {
-    stackToggleBtn.style.display = "none";
-  }
-
-  if (wagerBtn) {
-    wagerBtn.addEventListener("click", handleStackWagerClick);
-  }
-
-  if (stackBetDown) {
-    stackBetDown.addEventListener("click", () => {
-      decreaseWagerAmount();
-    });
-  }
-  if (stackBetUp) {
-    stackBetUp.addEventListener("click", () => {
-      increaseWagerAmount();
-    });
-  }
-
-  const stackCashDown = document.getElementById("stack-cash-down");
-  const stackCashUp = document.getElementById("stack-cash-up");
-  if (stackCashDown) stackCashDown.addEventListener("click", () => decreaseCashEntry());
-  if (stackCashUp) stackCashUp.addEventListener("click", () => increaseCashEntry());
-
-  // Load leaderboard for this game
-  loadLeaderboardForGame("stack-duel", "stack-leaderboard");
-
-  const stackLbRefresh = document.getElementById("stack-leaderboard-refresh");
-  if (stackLbRefresh) {
-    stackLbRefresh.addEventListener("click", () => {
-      loadLeaderboardForGame("stack-duel", "stack-leaderboard");
-    });
-  }
-
-  // Ensure wager labels and payout reflect the current amount on mount
-  updateWagerButtons();
-  updateStackCashUI();
-}
-
-async function handleStackWagerClick() {
-  if (!supabaseClient || !currentUser) {
-    openAuthModal("login");
-    return;
-  }
-
-  // Check if player is banned
-  const canPlay = await checkBanBeforeGame('stack_duel');
-  if (!canPlay) return;
-
-  const btn = document.getElementById("stack-wager");
-  if (!btn) return;
-  const toggleBtn = document.getElementById("stack-wager-toggle");
-
-  const cashEntry = getCurrentCashEntry();
-
-  const now = Date.now();
-  const last = lastWagerAtByGame["stack-duel"] || 0;
-  if (now - last < WAGER_COOLDOWN_MS) {
-    const remaining = Math.ceil((WAGER_COOLDOWN_MS - (now - last)) / 1000);
-    alert(`Please wait ${remaining}s before starting another Stack wager.`);
-    return;
-  }
-
-  if (stackState && stackState.inWager) {
-    btn.style.display = "none";
-    alert("You already have an active wager run. Finish it before starting another.");
-    return;
-  }
-
-  if ((currentUser.cash_balance ?? 0) < cashEntry) {
-    alert(`Not enough cash for a $${cashEntry.toFixed(2)} entry. Please deposit more.`);
-    return;
-  }
-
-  btn.disabled = true;
-  btn.style.display = "none";
-  if (toggleBtn) {
-    toggleBtn.style.display = "none";
-  }
-
-  try {
-    const match = await createCashMatchForGame("stack-duel", cashEntry);
-    if (!match) {
-      throw new Error("Could not create cash match.");
-    }
-    const slot = match.player2_id === currentUser.id ? "player2" : "player1";
-
-    pendingStackJoin = { matchId: match.id, slot, isCashMode: true, cashEntry };
-
-    await loadCurrentUser();
-
-    // Record cooldown timestamp for this game
-    lastWagerAtByGame["stack-duel"] = now;
-
-    if (stackState) {
-      stackState.inWager = true;
-      stackState.matchId = match.id;
-      stackState.playerSlot = slot;
-      stackState.opponentName = null;
-      stackState.gameOverReported = false;
-      stackState.isCashMode = true;
-      stackState.cashEntry = cashEntry;
-      // Provably Fair data
-      stackState.provablyFairId = match.provablyFairId || null;
-      stackState.serverSeedHash = match.serverSeedHash || null;
-      stackState.serverSeed = match.serverSeed || null;
-      // Create anti-cheat session for this game
-      stackState.antiCheatSession = AntiCheat.createSession('stack_duel', match.id, currentUser.id);
-
-      if (btn) {
-        btn.style.display = "none";
-      }
-
-      try {
-        const oppId = slot === "player1" ? match.player2_id : match.player1_id;
-        if (oppId) {
-          const { data: oppProfile, error: oppError } = await supabaseClient
-            .from("profiles")
-            .select("username")
-            .eq("id", oppId)
-            .maybeSingle();
-          if (!oppError && oppProfile) {
-            stackState.opponentName = oppProfile.username || "Unknown player";
-          }
-        }
-      } catch (e) {
-        console.error("Failed to load opponent for Stack wager banner", e);
-      }
-
-      // Start a fresh run for this wager via hidden restart button
-      const stackRestartHidden = document.getElementById("stack-restart-hidden");
-      if (stackRestartHidden) {
-        stackRestartHidden.click();
-      }
-
-      const resultEl = document.getElementById("stack-wager-result");
-      if (resultEl) {
-        const modeLabel = `$${cashEntry.toFixed(2)} cash`;
-        if (slot === "player2") {
-          resultEl.textContent = `Match found (${modeLabel})! Finish your run to record your score.`;
-        } else {
-          resultEl.textContent = `Match created (${modeLabel}). Finish your run to record your score.`;
-        }
-      }
-      
-      // Show Provably Fair badge
-      const pfEl = document.getElementById("stack-provably-fair");
-      if (pfEl && stackState.serverSeedHash) {
-        pfEl.style.display = "block";
-        pfEl.innerHTML = renderProvablyFairBadge(stackState.serverSeedHash, true);
-        pfEl.onclick = () => window.showProvablyFairInfo(stackState.serverSeedHash, null, stackState.matchId);
-      }
-    }
-  } catch (err) {
-    console.error(err);
-    alert(err.message || "Failed to start wager match.");
-  } finally {
-    if (btn && !(stackState && stackState.inWager)) {
-      btn.disabled = false;
-    }
-  }
-}
-
-async function handleStackGameOver() {
-  if (
-    !supabaseClient ||
-    !currentUser ||
-    !stackState?.inWager ||
-    !stackState.matchId ||
-    !stackState.playerSlot
-  ) {
-    return;
-  }
-
-  try {
-    await submitMatchScore(stackState.matchId, stackState.playerSlot, stackState.score);
-    const resultEl = document.getElementById("stack-wager-result");
-    if (resultEl) {
-      resultEl.textContent = `Wager run finished. Score submitted: ${stackState.score}. Awaiting results...`;
-    }
-    
-    // Reveal Provably Fair seed
-    if (stackState.provablyFairId) {
-      await ProvablyFair.revealGame(stackState.provablyFairId);
-      const pfEl = document.getElementById("stack-provably-fair");
-      if (pfEl && stackState.serverSeedHash && stackState.serverSeed) {
-        pfEl.innerHTML = renderProvablyFairBadge(stackState.serverSeedHash, true);
-        pfEl.onclick = () => window.showProvablyFairInfo(stackState.serverSeedHash, stackState.serverSeed, stackState.matchId);
-      }
-    }
-  } catch (err) {
-    console.error(err);
-    alert(err.message || "Failed to submit wager score.");
-  } finally {
-    stackState.inWager = false;
-    stackState.matchId = null;
-    stackState.playerSlot = null;
-
-    const btn = document.getElementById("stack-wager");
-    if (btn) {
-      btn.disabled = false;
-      btn.style.display = "";
-    }
-    const toggleBtn = document.getElementById("stack-wager-toggle");
-    if (toggleBtn) {
-      toggleBtn.style.display = "";
-    }
-  }
-}
-
-// --- Chicken Run (single-player endless runner) ---
-
-function mountChickenRun() {
-  const root = document.getElementById("game-root");
-  root.innerHTML = `
-    <div class="chicken-layout">
-      <div class="chicken-top">
-        <div class="small-text">Distance</div>
-        <div class="chicken-score" id="chicken-score">0</div>
-        <button class="btn btn-secondary" id="chicken-wager">Start Tournament</button>
-        <!-- Coin controls hidden for now -->
-        <div id="chicken-coin-controls" style="display:none;">
-          <div class="bet-controls">
-            <button class="bet-btn" id="chicken-bet-down">-</button>
-            <span class="bet-label" id="chicken-bet-label">Entry fee: 100</span>
-            <button class="bet-btn" id="chicken-bet-up">+</button>
-          </div>
-          <div class="small-text" id="chicken-payout" style="margin-top:0.15rem; min-height:1em;"></div>
-        </div>
-        <!-- Cash entry controls -->
-        <div id="chicken-cash-controls">
-          <div class="bet-controls">
-            <button class="bet-btn" id="chicken-cash-down">-</button>
-            <span class="bet-label" id="chicken-cash-label">Entry: $1.00</span>
-            <button class="bet-btn" id="chicken-cash-up">+</button>
-          </div>
-          <div class="small-text" id="chicken-cash-payout" style="margin-top:0.15rem; min-height:1em;">Win: $1.70</div>
-        </div>
-        <button id="chicken-restart-hidden" style="display:none;"></button>
-      </div>
-      <div class="card" style="margin-top:0.5rem; margin-bottom:0.75rem;">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
-          <h3 class="section-title" style="margin-bottom:0;">Top 5 - Chicken Run</h3>
-          <button id="chicken-leaderboard-refresh" class="btn btn-secondary" style="padding:0.2rem 0.6rem;font-size:0.7rem;">Refresh</button>
-        </div>
-        <div id="chicken-leaderboard" class="small-text" style="margin-top:0.4rem; max-height:180px; overflow-y:auto;"></div>
-      </div>
-      <div class="small-text chicken-help">Press space or click to jump over obstacles. Survive as long as you can.</div>
-      <canvas id="chicken-canvas" width="480" height="260" class="chicken-canvas"></canvas>
-      <div class="small-text" id="chicken-wager-result" style="margin-top:0.25rem; min-height:1em;"></div>
-      <div id="chicken-provably-fair" style="margin-top:0.5rem;display:none;"></div>
-    </div>
-  `;
-
-  const canvas = document.getElementById("chicken-canvas");
-  const ctx = canvas.getContext("2d");
-  const scoreEl = document.getElementById("chicken-score");
-  const wagerBtn = document.getElementById("chicken-wager");
-  const chickenBetDown = document.getElementById("chicken-bet-down");
-  const chickenBetUp = document.getElementById("chicken-bet-up");
-
-  const groundY = canvas.height - 40;
-
-  chickenState = {
-    x: 60,
-    y: groundY - 24,
-    vy: 0,
-    width: 26,
-    height: 26,
-    jumping: false,
-    gravity: 0.6,
-    jumpStrength: -13,
-    obstacles: [],
-    obstacleSpeed: 2.6,
-    obstacleTimer: 0,
-    obstacleInterval: 120,
-    score: 0,
-    alive: true,
-    inWager: false,
-    matchId: null,
-    playerSlot: null,
-    gameOverReported: false,
-    wagerAmount: null,
-    isCashMode: false,
-    cashEntry: null,
-    // Anti-cheat
-    antiCheatSession: null,
-  };
-
-  function resetChicken() {
-    chickenState.y = groundY - 24;
-    chickenState.vy = 0;
-    chickenState.obstacles = [];
-    chickenState.obstacleSpeed = 2.6;
-    chickenState.obstacleTimer = 0;
-    chickenState.obstacleInterval = 120;
-    chickenState.score = 0;
-    chickenState.alive = true;
-    chickenState.gameOverReported = false;
-    scoreEl.textContent = "0";
-    const resultEl = document.getElementById("chicken-wager-result");
-    if (resultEl) {
-      resultEl.textContent = "";
-    }
-  }
-
-  function jump() {
-    // Only allow play when a wager is active
-    if (!chickenState.inWager) {
-      const resultEl = document.getElementById("chicken-wager-result");
-      if (resultEl) {
-        resultEl.textContent = "Start a wager to play this game.";
-      }
-      return;
-    }
-    if (!chickenState.alive) return;
-    if (chickenState.jumping) return;
-    
-    // Anti-cheat: Record action and check for bot behavior
-    if (chickenState.antiCheatSession) {
-      const result = AntiCheat.recordAction(chickenState.antiCheatSession, 'click');
-      if (!result.allowed) {
-        // Cheater detected - kill the chicken
-        chickenState.alive = false;
-        return;
-      }
-    }
-    
-    chickenState.vy = chickenState.jumpStrength;
-    chickenState.jumping = true;
-  }
-
-  function spawnObstacle() {
-    // Vary obstacle type/position based on current score so it gets more interesting over time
-    const baseWidth = 26;
-    const baseHeight = 28;
-
-    // For the first few points, keep obstacles simple and on the ground
-    if (chickenState.score < 8) {
-      const width = baseWidth + Math.random() * 10;
-      const height = baseHeight + Math.random() * 6;
-      chickenState.obstacles.push({
-        x: canvas.width + 10,
-        y: groundY - height,
-        width,
-        height,
-        passed: false,
-      });
-      return;
-    }
-
-    // After score 8, mix ground and floating obstacles
-    const typeRand = Math.random();
-
-    if (typeRand < 0.6) {
-      // Ground obstacle
-      const width = baseWidth + Math.random() * 14;
-      const height = baseHeight + Math.random() * 10;
-      chickenState.obstacles.push({
-        x: canvas.width + 10,
-        y: groundY - height,
-        width,
-        height,
-        passed: false,
-      });
-    } else {
-      // Floating obstacle you can safely run under
-      const width = baseWidth + Math.random() * 14;
-      const height = baseHeight + Math.random() * 6;
-      const gapAboveChicken = 8 + Math.random() * 10; // vertical gap between chicken and obstacle bottom
-      const y = groundY - chickenState.height - gapAboveChicken - height;
-
-      chickenState.obstacles.push({
-        x: canvas.width + 10,
-        y,
-        width,
-        height,
-        passed: false,
-      });
-    }
-  }
-
-  function updateChicken() {
-    if (!chickenState.alive) return;
-
-    // Physics
-    chickenState.vy += chickenState.gravity;
-    chickenState.y += chickenState.vy;
-
-    if (chickenState.y + chickenState.height >= groundY) {
-      chickenState.y = groundY - chickenState.height;
-      chickenState.vy = 0;
-      chickenState.jumping = false;
-    }
-
-    // Obstacles
-    chickenState.obstacleTimer++;
-    if (chickenState.obstacleTimer >= chickenState.obstacleInterval) {
-      chickenState.obstacleTimer = 0;
-      spawnObstacle();
-      // Slightly speed up obstacles and reduce interval over time (gentler ramp)
-      chickenState.obstacleSpeed = Math.min(chickenState.obstacleSpeed + 0.05, 6);
-      chickenState.obstacleInterval = Math.max(70, chickenState.obstacleInterval - 0.5);
-    }
-
-    chickenState.obstacles.forEach((o) => {
-      o.x -= chickenState.obstacleSpeed;
-    });
-    chickenState.obstacles = chickenState.obstacles.filter((o) => o.x + o.width > -20);
-
-    // Score and collisions
-    chickenState.obstacles.forEach((o) => {
-      if (!o.passed && o.x + o.width < chickenState.x) {
-        o.passed = true;
-        chickenState.score += 1;
-        scoreEl.textContent = String(chickenState.score);
-      }
-
-      const overlapX =
-        chickenState.x < o.x + o.width && chickenState.x + chickenState.width > o.x;
-      const overlapY =
-        chickenState.y < o.y + o.height && chickenState.y + chickenState.height > o.y;
-      if (overlapX && overlapY) {
-        chickenState.alive = false;
-        if (
-          supabaseClient &&
-          currentUser &&
-          chickenState.inWager &&
-          chickenState.matchId &&
-          chickenState.playerSlot &&
-          !chickenState.gameOverReported
-        ) {
-          chickenState.gameOverReported = true;
-          handleChickenGameOver();
-        }
-      }
-    });
-  }
-
-  function drawChicken() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Background
-    ctx.fillStyle = "#0f172a";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Ground
-    ctx.fillStyle = "#15803d";
-    ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
-
-    // Obstacles
-    ctx.fillStyle = "#f97316";
-    chickenState.obstacles.forEach((o) => {
-      ctx.fillRect(o.x, o.y, o.width, o.height);
-    });
-
-    // Chicken
-    ctx.fillStyle = "#e5e7eb";
-    ctx.fillRect(
-      chickenState.x,
-      chickenState.y,
-      chickenState.width,
-      chickenState.height
-    );
-
-    // Eye / beak for a little character vibe
-    ctx.fillStyle = "#000000";
-    ctx.fillRect(chickenState.x + 16, chickenState.y + 6, 4, 4);
-    ctx.fillStyle = "#facc15";
-    ctx.fillRect(chickenState.x + chickenState.width, chickenState.y + 10, 6, 4);
-
-    // Active wager banner in HUD
-    if (chickenState.inWager && chickenState.matchId) {
-      const bannerAmount = chickenState.wagerAmount || getCurrentWagerAmount();
-      ctx.fillStyle = "#1e293b";
-      ctx.fillRect(8, 8, 220, 32);
-      ctx.fillStyle = "#e5e7eb";
-      ctx.font = "11px system-ui";
-      const oppLabel = chickenState.opponentName
-        ? `vs ${chickenState.opponentName}`
-        : "Matching opponent...";
-      ctx.fillText(`${bannerAmount}-coin wager`, 14, 22);
-      ctx.fillText(oppLabel, 14, 34);
-    }
-
-    // Game over overlay
-    if (!chickenState.alive) {
-      ctx.fillStyle = "rgba(15,23,42,0.7)";
-      ctx.fillRect(0, canvas.height / 2 - 28, canvas.width, 56);
-      ctx.fillStyle = "#e5e7eb";
-      ctx.font = "16px system-ui";
-      const text = "Hit an obstacle - press Restart";
-      const textWidth = ctx.measureText(text).width;
-      ctx.fillText(text, canvas.width / 2 - textWidth / 2, canvas.height / 2 + 4);
-    }
-  }
-
-  function loop() {
-    updateChicken();
-    drawChicken();
-    chickenAnimId = requestAnimationFrame(loop);
-  }
-
-  resetChicken();
-  loop();
-
-  function handleInput(e) {
-    if (e.type === "keydown" && e.code === "Space") {
-      e.preventDefault();
-      jump();
-    } else if (e.type === "mousedown") {
-      jump();
-    }
-  }
-
-  canvas.addEventListener("mousedown", handleInput);
-  window.addEventListener("keydown", handleInput);
-
-  const chickenRestartHidden = document.getElementById("chicken-restart-hidden");
-  if (chickenRestartHidden) {
-    chickenRestartHidden.addEventListener("click", () => {
-      resetChicken();
-    });
-  }
-
-   // Attach any pending wager join created before this mount.
-  if (pendingChickenJoin && pendingChickenJoin.matchId && pendingChickenJoin.slot) {
-    chickenState.inWager = true;
-    chickenState.matchId = pendingChickenJoin.matchId;
-    chickenState.playerSlot = pendingChickenJoin.slot;
-    chickenState.gameOverReported = false;
-    chickenState.isCashMode = pendingChickenJoin.isCashMode || false;
-    chickenState.cashEntry = pendingChickenJoin.cashEntry || null;
-    pendingChickenJoin = null;
-    const resultEl = document.getElementById("chicken-wager-result");
-    if (resultEl) {
-      resultEl.textContent = "Match attached. Finish your run to record your score.";
-    }
-  }
-
-  if (chickenState.inWager && wagerBtn) {
-    wagerBtn.style.display = "none";
-  }
-
-  if (wagerBtn) {
-    wagerBtn.addEventListener("click", handleChickenWagerClick);
-  }
-
-  if (chickenBetDown) {
-    chickenBetDown.addEventListener("click", () => {
-      decreaseWagerAmount();
-    });
-  }
-  if (chickenBetUp) {
-    chickenBetUp.addEventListener("click", () => {
-      increaseWagerAmount();
-    });
-  }
-
-  const chickenCashDown = document.getElementById("chicken-cash-down");
-  const chickenCashUp = document.getElementById("chicken-cash-up");
-  if (chickenCashDown) chickenCashDown.addEventListener("click", () => decreaseCashEntry());
-  if (chickenCashUp) chickenCashUp.addEventListener("click", () => increaseCashEntry());
-
-  // Load leaderboard for this game
-  loadLeaderboardForGame("chicken-run", "chicken-leaderboard");
-
-  const chickenLbRefresh = document.getElementById("chicken-leaderboard-refresh");
-  if (chickenLbRefresh) {
-    chickenLbRefresh.addEventListener("click", () => {
-      loadLeaderboardForGame("chicken-run", "chicken-leaderboard");
-    });
-  }
-
-  // Ensure wager labels reflect current amount
-  updateWagerButtons();
-  updateChickenCashUI();
-}
-
-async function handleChickenWagerClick() {
-  if (!supabaseClient || !currentUser) {
-    openAuthModal("login");
-    return;
-  }
-
-  // Check if player is banned
-  const canPlay = await checkBanBeforeGame('chicken_run');
-  if (!canPlay) return;
-
-  const btn = document.getElementById("chicken-wager");
-  if (!btn) return;
-
-  const cashEntry = getCurrentCashEntry();
-  const now = Date.now();
-  const last = lastWagerAtByGame["chicken-run"] || 0;
-  if (now - last < WAGER_COOLDOWN_MS) {
-    const remaining = Math.ceil((WAGER_COOLDOWN_MS - (now - last)) / 1000);
-    alert(`Please wait ${remaining}s before starting another Chicken wager.`);
-    return;
-  }
-
-  if (chickenState && chickenState.inWager) {
-    btn.style.display = "none";
-    alert("You already have an active wager run. Finish it before starting another.");
-    return;
-  }
-
-  if ((currentUser.cash_balance ?? 0) < cashEntry) {
-    alert(`Not enough cash for a $${cashEntry.toFixed(2)} entry. Please deposit more.`);
-    return;
-  }
-
-  btn.disabled = true;
-  btn.style.display = "none";
-
-  try {
-    const match = await createCashMatchForGame("chicken-run", cashEntry);
-    if (!match) {
-      throw new Error("Could not create cash match.");
-    }
-    const slot = match.player2_id === currentUser.id ? "player2" : "player1";
-
-    pendingChickenJoin = { matchId: match.id, slot, isCashMode: true, cashEntry };
-
-    await loadCurrentUser();
-    lastWagerAtByGame["chicken-run"] = now;
-
-    if (chickenState) {
-      chickenState.inWager = true;
-      chickenState.matchId = match.id;
-      chickenState.playerSlot = slot;
-      chickenState.gameOverReported = false;
-      chickenState.opponentName = null;
-      chickenState.wagerAmount = null;
-      chickenState.isCashMode = true;
-      chickenState.cashEntry = cashEntry;
-      // Provably Fair data
-      chickenState.provablyFairId = match.provablyFairId || null;
-      chickenState.serverSeedHash = match.serverSeedHash || null;
-      chickenState.serverSeed = match.serverSeed || null;
-      // Create anti-cheat session for this game
-      chickenState.antiCheatSession = AntiCheat.createSession('chicken_run', match.id, currentUser.id);
-
-      if (btn) {
-        btn.style.display = "none";
-      }
-
-      try {
-        const oppId = slot === "player1" ? match.player2_id : match.player1_id;
-        if (oppId) {
-          const { data: oppProfile, error: oppError } = await supabaseClient
-            .from("profiles")
-            .select("username")
-            .eq("id", oppId)
-            .maybeSingle();
-          if (!oppError && oppProfile) {
-            chickenState.opponentName = oppProfile.username || "Unknown player";
-          }
-        }
-      } catch (e) {
-        console.error("Failed to load opponent for Chicken wager banner", e);
-      }
-
-      // Start a fresh run for this wager via hidden restart button
-      const chickenRestartHidden = document.getElementById("chicken-restart-hidden");
-      if (chickenRestartHidden) {
-        chickenRestartHidden.click();
-      }
-
-      const modeLabel = `$${cashEntry.toFixed(2)} cash`;
-      if (slot === "player2") {
-        alert(`Joined a ${modeLabel} wager! Finish your run to record your score.`);
-      } else {
-        alert(`Created a ${modeLabel} wager! Finish your run to record your score.`);
-      }
-      
-      // Show Provably Fair badge
-      const pfEl = document.getElementById("chicken-provably-fair");
-      if (pfEl && chickenState.serverSeedHash) {
-        pfEl.style.display = "block";
-        pfEl.innerHTML = renderProvablyFairBadge(chickenState.serverSeedHash, true);
-        pfEl.onclick = () => window.showProvablyFairInfo(chickenState.serverSeedHash, null, chickenState.matchId);
-      }
-    }
-  } catch (err) {
-    console.error(err);
-    alert(err.message || "Failed to start Chicken wager.");
-  } finally {
-    if (btn && !(chickenState && chickenState.inWager)) {
-      btn.disabled = false;
-    }
-  }
-}
-
-async function handleChickenGameOver() {
-  if (
-    !supabaseClient ||
-    !currentUser ||
-    !chickenState?.inWager ||
-    !chickenState.matchId ||
-    !chickenState.playerSlot
-  ) {
-    return;
-  }
-
-  try {
-    await submitMatchScore(chickenState.matchId, chickenState.playerSlot, chickenState.score);
-    const resultEl = document.getElementById("chicken-wager-result");
-    if (resultEl) {
-      resultEl.textContent = `Wager run finished. Distance submitted: ${chickenState.score}. Awaiting results...`;
-    }
-    
-    // Reveal Provably Fair seed
-    if (chickenState.provablyFairId) {
-      await ProvablyFair.revealGame(chickenState.provablyFairId);
-      const pfEl = document.getElementById("chicken-provably-fair");
-      if (pfEl && chickenState.serverSeedHash && chickenState.serverSeed) {
-        pfEl.innerHTML = renderProvablyFairBadge(chickenState.serverSeedHash, true);
-        pfEl.onclick = () => window.showProvablyFairInfo(chickenState.serverSeedHash, chickenState.serverSeed, chickenState.matchId);
-      }
-    }
-  } catch (err) {
-    console.error(err);
-    alert(err.message || "Failed to submit Chicken wager score.");
-  } finally {
-    chickenState.inWager = false;
-    chickenState.matchId = null;
-    chickenState.playerSlot = null;
-    chickenState.wagerAmount = null;
-    chickenState.gameOverReported = false;
-
-    const btn = document.getElementById("chicken-wager");
-    if (btn) {
-      btn.disabled = false;
-      btn.style.display = "";
-    }
-    const toggleBtn = document.getElementById("chicken-wager-toggle");
-    if (toggleBtn) {
-      toggleBtn.style.display = "";
-    }
-  }
-}
-
-// --- Auth handlers ---
 async function handleChangeEmailSubmit(event) {
   event.preventDefault();
   if (!supabaseClient || !currentUser) return;
@@ -6020,15 +4145,6 @@ async function submitMatchScore(matchId, playerSlot, score) {
     if (gameId === "flappy-race") {
       return document.getElementById("flappy-wager-result");
     }
-    if (gameId === "stack-duel") {
-      return document.getElementById("stack-wager-result");
-    }
-    if (gameId === "reaction-duel") {
-      return document.getElementById("reaction-wager-result");
-    }
-    if (gameId === "chicken-run") {
-      return document.getElementById("chicken-wager-result");
-    }
     if (gameId === "avoid-germs") {
       return document.getElementById("germs-wager-result");
     }
@@ -6040,6 +4156,9 @@ async function submitMatchScore(matchId, playerSlot, score) {
     }
     if (gameId === "geometry-rush") {
       return document.getElementById("geometry-rush-wager-result");
+    }
+    if (gameId === "color-rush") {
+      return document.getElementById("color-rush-wager-result");
     }
     return null;
   }
@@ -6285,255 +4404,6 @@ async function adjustCurrentUserCoinsNoRender(delta) {
   // Update header coin display directly
   const coinEl = document.querySelector('.header-coins');
   if (coinEl) coinEl.textContent = `${data.coin_balance.toLocaleString()} coins`;
-}
-
-async function findOrCreateFlappyMatch(wagerAmount) {
-  if (!supabaseClient || !currentUser) return { match: null, slot: null };
-
-  const maxPlayers = getFlappyPlayerCount();
-  console.log('[Flappy] Looking for match with wager:', wagerAmount, 'maxPlayers:', maxPlayers);
-
-  // 1) Try to join an existing open match with same wager and max_players
-  // For 3-player matches, we need to find matches that have empty slots (player2 or player3)
-  const { data: openMatches, error: selectError } = await supabaseClient
-    .from("matches")
-    .select("id, game_id, wager, status, player1_id, player2_id, player3_id, max_players")
-    .eq("game_id", "flappy-race")
-    .eq("wager", wagerAmount)
-    .eq("status", "open")
-    .neq("player1_id", currentUser.id)
-    .order("created_at", { ascending: true })
-    .limit(10);
-
-  console.log('[Flappy] Open matches found:', openMatches?.length || 0, openMatches);
-
-  if (selectError && selectError.code !== "PGRST116") {
-    console.error('[Flappy] Select error:', selectError);
-    throw selectError;
-  }
-
-  // Find a match we can join (has an empty slot AND matching max_players)
-  let matchToJoin = null;
-  let slotToFill = null;
-  
-  for (const m of (openMatches || [])) {
-    const matchMaxPlayers = m.max_players || 2;
-    console.log('[Flappy] Checking match:', m.id, 'max_players:', matchMaxPlayers, 'p1:', m.player1_id, 'p2:', m.player2_id, 'p3:', m.player3_id);
-    
-    // Skip if max_players doesn't match what we're looking for
-    if (matchMaxPlayers !== maxPlayers) continue;
-    
-    // Skip if we're already in this match
-    if (m.player2_id === currentUser.id || m.player3_id === currentUser.id) continue;
-    
-    if (!m.player2_id) {
-      matchToJoin = m;
-      slotToFill = "player2";
-      console.log('[Flappy] Found slot: player2 in match', m.id);
-      break;
-    } else if (maxPlayers === 3 && !m.player3_id) {
-      matchToJoin = m;
-      slotToFill = "player3";
-      console.log('[Flappy] Found slot: player3 in match', m.id);
-      break;
-    }
-  }
-
-  if (!matchToJoin) {
-    console.log('[Flappy] No suitable match found, will create new one');
-  }
-
-  if (matchToJoin && slotToFill) {
-    // Use the MATCH's max_players, not the local selector
-    const matchMaxPlayers = matchToJoin.max_players || 2;
-    
-    // Determine if this completes the match (all players joined)
-    const willBeComplete = (slotToFill === "player2" && matchMaxPlayers === 2) ||
-                           (slotToFill === "player3" && matchMaxPlayers === 3);
-    const newStatus = willBeComplete ? "in_progress" : "open";
-    console.log('[Flappy] Joining match', matchToJoin.id, 'as', slotToFill, 'matchMaxPlayers:', matchMaxPlayers, 'newStatus:', newStatus);
-    
-    const updateData = { [slotToFill + "_id"]: currentUser.id, status: newStatus };
-    
-    const { data: joinedRows, error: updateError } = await supabaseClient
-      .from("matches")
-      .update(updateData)
-      .eq("id", matchToJoin.id)
-      .select("id, game_id, wager, status, player1_id, player2_id, player3_id, max_players");
-
-    if (updateError) {
-      console.error(updateError);
-      throw updateError;
-    }
-
-    const joined = joinedRows && joinedRows.length > 0 ? joinedRows[0] : matchToJoin;
-    
-    // Fetch existing provably fair data for this match
-    const pfData = await ProvablyFair.getVerificationData(joined.id);
-    if (pfData) {
-      joined.provablyFairId = pfData.id;
-      joined.serverSeedHash = pfData.server_seed_hash;
-      joined.serverSeed = pfData.server_seed;
-    }
-    
-    return { match: joined, slot: slotToFill };
-  }
-
-  // 2) Otherwise create a new match as player1
-  console.log('[Flappy] Creating new match with maxPlayers:', maxPlayers);
-  const created = await createMatchForGame("flappy-race", wagerAmount, maxPlayers);
-  console.log('[Flappy] Created match:', created?.id, 'max_players:', created?.max_players);
-  return { match: created, slot: "player1" };
-}
-
-async function findOrCreateStackMatch(wagerAmount) {
-  if (!supabaseClient || !currentUser) return { match: null, slot: null };
-
-  const { data: openMatches, error: selectError } = await supabaseClient
-    .from("matches")
-    .select("id, game_id, wager, status, player1_id, player2_id")
-    .eq("game_id", "stack-duel")
-    .eq("wager", wagerAmount)
-    .eq("status", "open")
-    .is("player2_id", null)
-    .neq("player1_id", currentUser.id)
-    .order("created_at", { ascending: true })
-    .limit(1);
-
-  if (selectError && selectError.code !== "PGRST116") {
-    console.error(selectError);
-    throw selectError;
-  }
-
-  const openMatch = openMatches && openMatches.length > 0 ? openMatches[0] : null;
-
-  if (openMatch) {
-    const { data: joinedRows, error: updateError } = await supabaseClient
-      .from("matches")
-      .update({ player2_id: currentUser.id, status: "in_progress" })
-      .eq("id", openMatch.id)
-      .select("id, game_id, wager, status, player1_id, player2_id");
-
-    if (updateError) {
-      console.error(updateError);
-      throw updateError;
-    }
-
-    const joined = joinedRows && joinedRows.length > 0 ? joinedRows[0] : openMatch;
-    
-    // Fetch existing provably fair data for this match
-    const pfData = await ProvablyFair.getVerificationData(joined.id);
-    if (pfData) {
-      joined.provablyFairId = pfData.id;
-      joined.serverSeedHash = pfData.server_seed_hash;
-      joined.serverSeed = pfData.server_seed;
-    }
-    
-    return { match: joined, slot: "player2" };
-  }
-
-  const created = await createMatchForGame("stack-duel", wagerAmount);
-  return { match: created, slot: "player1" };
-}
-
-async function findOrCreateReactionMatch(wagerAmount) {
-  if (!supabaseClient || !currentUser) return { match: null, slot: null };
-
-  const { data: openMatches, error: selectError } = await supabaseClient
-    .from("matches")
-    .select("id, game_id, wager, status, player1_id, player2_id")
-    .eq("game_id", "reaction-duel")
-    .eq("wager", wagerAmount)
-    .eq("status", "open")
-    .is("player2_id", null)
-    .neq("player1_id", currentUser.id)
-    .order("created_at", { ascending: true })
-    .limit(1);
-
-  if (selectError && selectError.code !== "PGRST116") {
-    console.error(selectError);
-    throw selectError;
-  }
-
-  const openMatch = openMatches && openMatches.length > 0 ? openMatches[0] : null;
-
-  if (openMatch) {
-    const { data: joinedRows, error: updateError } = await supabaseClient
-      .from("matches")
-      .update({ player2_id: currentUser.id, status: "in_progress" })
-      .eq("id", openMatch.id)
-      .select("id, game_id, wager, status, player1_id, player2_id");
-
-    if (updateError) {
-      console.error(updateError);
-      throw updateError;
-    }
-
-    const joined = joinedRows && joinedRows.length > 0 ? joinedRows[0] : openMatch;
-    
-    // Fetch existing provably fair data for this match
-    const pfData = await ProvablyFair.getVerificationData(joined.id);
-    if (pfData) {
-      joined.provablyFairId = pfData.id;
-      joined.serverSeedHash = pfData.server_seed_hash;
-      joined.serverSeed = pfData.server_seed;
-    }
-    
-    return { match: joined, slot: "player2" };
-  }
-
-  const created = await createMatchForGame("reaction-duel", wagerAmount);
-  return { match: created, slot: "player1" };
-}
-
-async function findOrCreateChickenMatch(wagerAmount) {
-  if (!supabaseClient || !currentUser) return { match: null, slot: null };
-
-  const { data: openMatches, error: selectError } = await supabaseClient
-    .from("matches")
-    .select("id, game_id, wager, status, player1_id, player2_id")
-    .eq("game_id", "chicken-run")
-    .eq("wager", wagerAmount)
-    .eq("status", "open")
-    .is("player2_id", null)
-    .neq("player1_id", currentUser.id)
-    .order("created_at", { ascending: true })
-    .limit(1);
-
-  if (selectError && selectError.code !== "PGRST116") {
-    console.error(selectError);
-    throw selectError;
-  }
-
-  const openMatch = openMatches && openMatches.length > 0 ? openMatches[0] : null;
-
-  if (openMatch) {
-    const { data: joinedRows, error: updateError } = await supabaseClient
-      .from("matches")
-      .update({ player2_id: currentUser.id, status: "in_progress" })
-      .eq("id", openMatch.id)
-      .select("id, game_id, wager, status, player1_id, player2_id");
-
-    if (updateError) {
-      console.error(updateError);
-      throw updateError;
-    }
-
-    const joined = joinedRows && joinedRows.length > 0 ? joinedRows[0] : openMatch;
-    
-    // Fetch existing provably fair data for this match
-    const pfData = await ProvablyFair.getVerificationData(joined.id);
-    if (pfData) {
-      joined.provablyFairId = pfData.id;
-      joined.serverSeedHash = pfData.server_seed_hash;
-      joined.serverSeed = pfData.server_seed;
-    }
-    
-    return { match: joined, slot: "player2" };
-  }
-
-  const created = await createMatchForGame("chicken-run", wagerAmount);
-  return { match: created, slot: "player1" };
 }
 
 async function findOrCreateGermsMatch(wagerAmount) {

@@ -497,7 +497,19 @@ function update() {
       // fullscreen canvas, making the game feel far too fast outside of
       // fullscreen. Scaling by dt*60 keeps the original feel at a 60fps
       // baseline while staying consistent at any frame rate.
-      var dt = Math.min(clock.getDelta(), 0.1);
+      //
+      // The dt cap here matters a lot: if a single frame hitches (GC pause,
+      // WebGL warm-up, tab throttling — most likely right after a tree
+      // spawns or early in a run), a large dt lets the world rotate several
+      // frames' worth of distance in one tick. That can move a freshly
+      // spawned tree from "far away" straight into the collision zone
+      // within that one tick, and the crash gets detected before render()
+      // ever draws the tree at an intermediate, dodgeable position — an
+      // apparently "invisible" instant death. Capping dt much tighter
+      // (~2 frames at 60fps) means a hitch makes the game briefly pause/
+      // stutter instead of letting obstacles teleport through the
+      // collision zone undodged.
+      var dt = Math.min(clock.getDelta(), 0.033);
       var frameScale = dt * 60;
       rollingGroundSphere.rotation.x += rollingSpeed * frameScale;
       ball.rotation.x -= ballRollingSpeed * frameScale;
