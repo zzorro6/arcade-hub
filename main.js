@@ -1787,44 +1787,79 @@ const gameCards = [
     mode: "1v1 skill",
     comingSoon: false,
   },
+  {
+    id: "speed-minesweeper",
+    title: "Speed Minesweeper",
+    description: "Timed 9x9 mine-sweeper. Reveal cells fast for bigger points — hit one mine and the run ends instantly. Both players get the same board.",
+    mode: "1v1 skill",
+    comingSoon: false,
+  },
 ];
 
 function renderHub() {
+  const gameArt = {
+    "flappy-race": { icon: "FLAP", image: "assets/flappy-race-cover.png", category: "action" },
+    "speed-dash": { icon: "DASH", category: "live" },
+    "avoid-germs": { icon: "GERMS", image: "games/avoid-the-germs/assets/background.png", category: "action" },
+    "night-shift": { icon: "NIGHT", category: "action" },
+    "rolling-rush": { icon: "RUSH", category: "action" },
+    "geometry-rush": { icon: "GEO", category: "action" },
+    "color-rush": { icon: "COLOR", category: "puzzle" },
+    "speed-minesweeper": { icon: "MINES", category: "puzzle" },
+  };
+
   mainContent.innerHTML = `
-    <section class="card" style="margin-bottom:1rem;">
-      <div class="badge" style="margin-bottom:0.5rem;">Early prototype</div>
-      <h2 class="section-title">Skill Arcade</h2>
-      <p class="tagline">Play local prototypes of skill games. Logins and coins are optional while we build the core games.</p>
+    <section class="card hub-intro">
+      <div class="badge">Skill arcade</div>
+      <h2 class="section-title">Pick a game. Set a score. Win.</h2>
+      <p class="tagline">Fast skill games built for head-to-head tournaments.</p>
     </section>
 
-    <section class="card">
-      <h3 class="section-title">Games</h3>
-      <div class="grid" style="margin-top:0.75rem;">
+    <nav class="hub-category-bar" aria-label="Game categories">
+      <button class="hub-category active" data-game-filter="all">All</button>
+      <button class="hub-category" data-game-filter="live"><span class="live-dot"></span>Live</button>
+      <button class="hub-category" data-game-filter="action">Action</button>
+      <button class="hub-category" data-game-filter="puzzle">Puzzle</button>
+    </nav>
+
+    <section class="hub-games-section" id="hub-games">
+      <div class="hub-section-heading">
+        <h3 class="section-title">Games</h3>
+        <span>${gameCards.length} available</span>
+      </div>
+      <div class="grid hub-game-grid">
         ${gameCards
-          .map(
-            (g) => `
-          <article class="card game-card">
-            ${
-              g.id === "flappy-race"
-                ? `<div class="game-card-media"><img src="assets/flappy-race-cover.jpg" alt="Flappy Race cover" class="game-card-image" /></div>`
-                : ""
-            }
-            <div class="game-title">${g.title}</div>
-            <div class="game-meta">${g.description}</div>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.75rem;">
-              <span class="pill">${g.mode}</span>
-              <button class="btn btn-secondary" data-game-id="${g.id}">${
-                g.comingSoon ? "Coming soon" : "Play"
-              }</button>
+          .map((g, index) => {
+            const art = gameArt[g.id] || { icon: "PLAY", category: "action" };
+            return `
+          <article class="game-card game-card--${g.id}" data-game-category="${art.category}">
+            <button class="game-card-play" data-game-id="${g.id}" aria-label="Play ${g.title}">
+              <div class="game-card-media">
+                ${art.image ? `<img src="${art.image}" alt="" class="game-card-image" />` : ""}
+                <div class="game-card-art"><span>${art.icon}</span></div>
+                ${index < 2 ? `<span class="game-ribbon">${index === 0 ? "Featured" : "Live"}</span>` : ""}
+                <span class="game-live-badge"><span class="live-dot"></span>${g.mode === "Live multiplayer" ? "LIVE" : "1V1"}</span>
+                <div class="game-card-overlay">
+                  <div class="game-title">${g.title}</div>
+                  <div class="game-card-cta">Play now</div>
+                </div>
+              </div>
+            </button>
+            <div class="game-card-info">
+              <div class="game-title">${g.title}</div>
+              <div class="game-meta">${g.description}</div>
+              <div class="game-card-footer">
+                <span class="pill">${g.mode}</span>
+                <button class="btn btn-secondary" data-game-id="${g.id}">${g.comingSoon ? "Coming soon" : "Play"}</button>
+              </div>
             </div>
-          </article>
-        `
-          )
+          </article>`;
+          })
           .join("")}
       </div>
     </section>
 
-    <section class="card" style="margin-top:1rem;" id="wagers-card">
+    <section class="card mobile-hub-panel" id="wagers-card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
         <h3 class="section-title" style="margin-bottom:0;">Tournament Results</h3>
         <div style="display:flex;align-items:center;gap:0.4rem;">
@@ -1844,7 +1879,35 @@ function renderHub() {
       }</div>
     </section>
 
+    <nav class="mobile-bottom-nav" aria-label="Primary navigation">
+      <button class="mobile-nav-item" data-mobile-target="results"><span class="mobile-nav-icon">▤</span><span>Results</span></button>
+      <button class="mobile-nav-item active" data-mobile-target="games"><span class="mobile-nav-icon">◆</span><span>Play</span></button>
+      <button class="mobile-nav-item" data-mobile-target="account"><span class="mobile-nav-icon">●</span><span>Account</span></button>
+    </nav>
   `;
+
+  document.querySelectorAll("[data-game-filter]").forEach((filterBtn) => {
+    filterBtn.addEventListener("click", () => {
+      const filter = filterBtn.getAttribute("data-game-filter");
+      document.querySelectorAll("[data-game-filter]").forEach((btn) => btn.classList.toggle("active", btn === filterBtn));
+      document.querySelectorAll("[data-game-category]").forEach((card) => {
+        card.hidden = filter !== "all" && card.getAttribute("data-game-category") !== filter;
+      });
+    });
+  });
+
+  document.querySelectorAll("[data-mobile-target]").forEach((navBtn) => {
+    navBtn.addEventListener("click", () => {
+      const target = navBtn.getAttribute("data-mobile-target");
+      const gamesPanel = document.getElementById("hub-games");
+      const resultsPanel = document.getElementById("wagers-card");
+      document.querySelectorAll("[data-mobile-target]").forEach((btn) => btn.classList.toggle("active", btn === navBtn));
+      if (gamesPanel) gamesPanel.classList.toggle("mobile-panel-hidden", target === "results");
+      if (resultsPanel) resultsPanel.classList.toggle("mobile-panel-active", target === "results");
+      if (target === "account") document.querySelector(".topbar")?.scrollIntoView({ behavior: "smooth" });
+      else window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
 
   document.querySelectorAll("[data-game-id]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1926,6 +1989,8 @@ let geometryRushState = null;
 let geometryRushMessageHandler = null;
 let colorRushState = null;
 let colorRushMessageHandler = null;
+let speedMinesweeperState = null;
+let speedMinesweeperMessageHandler = null;
 let germsWagerMode = "cash"; // "coin" or "cash" (coin wagers hidden for now)
 
 function renderGameScreen() {
@@ -1996,6 +2061,8 @@ function renderGameScreen() {
     mountGeometryRush();
   } else if (currentGameId === "color-rush") {
     mountColorRush();
+  } else if (currentGameId === "speed-minesweeper") {
+    mountSpeedMinesweeper();
   } else {
     const root = document.getElementById("game-root");
     root.textContent = "Prototype coming soon.";
@@ -3321,6 +3388,252 @@ async function handleColorRushGameOver(score) {
   }
 }
 
+function mountSpeedMinesweeper() {
+  const root = document.getElementById("game-root");
+  root.innerHTML = `
+    <div class="germs-layout">
+      <div class="germs-top">
+        <div class="small-text">Score this run</div>
+        <div class="chicken-score" id="speed-minesweeper-score">0</div>
+
+        <button class="btn btn-secondary" id="speed-minesweeper-wager">Start Tournament</button>
+
+        <div id="speed-minesweeper-cash-controls">
+          <div class="bet-controls">
+            <button class="bet-btn" id="speed-minesweeper-cash-down">-</button>
+            <span class="bet-label" id="speed-minesweeper-cash-label">Entry: $1.00</span>
+            <button class="bet-btn" id="speed-minesweeper-cash-up">+</button>
+          </div>
+          <div class="small-text" id="speed-minesweeper-cash-payout" style="margin-top:0.15rem; min-height:1em;">Win: $1.70</div>
+        </div>
+      </div>
+
+      <div class="card" data-leaderboard-card="true" style="margin-top:0.5rem; margin-bottom:0.75rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
+          <h3 class="section-title" style="margin-bottom:0;">Top 5 - Speed Minesweeper</h3>
+          <button id="speed-minesweeper-leaderboard-refresh" class="btn btn-secondary" style="padding:0.2rem 0.6rem;font-size:0.7rem;">Refresh</button>
+        </div>
+        <div id="speed-minesweeper-leaderboard" class="small-text" style="margin-top:0.4rem; max-height:180px; overflow-y:auto;"></div>
+      </div>
+
+      <div class="speed-minesweeper-frame-wrap">
+        <iframe
+          id="speed-minesweeper-iframe"
+          src="games/speed-minesweeper/index.html"
+          allow="autoplay"
+        ></iframe>
+      </div>
+      <div class="small-text" style="margin-top:0.5rem;">Click Start Tournament for a fresh cash run, then click START inside the game. Tap a cell to reveal, hold a cell (or toggle FLAG mode) to flag. Reveal quickly for bigger points — one mine ends the run and your score is submitted.</div>
+      <div class="small-text" id="speed-minesweeper-wager-result" style="margin-top:0.25rem; min-height:1em;"></div>
+      <div id="speed-minesweeper-provably-fair" style="margin-top:0.5rem;display:none;"></div>
+    </div>
+  `;
+
+  const wagerBtn = document.getElementById("speed-minesweeper-wager");
+  if (wagerBtn) {
+    wagerBtn.addEventListener("click", handleSpeedMinesweeperWagerClick);
+  }
+
+  const cashDown = document.getElementById("speed-minesweeper-cash-down");
+  const cashUp = document.getElementById("speed-minesweeper-cash-up");
+  if (cashDown) cashDown.addEventListener("click", () => decreaseCashEntry());
+  if (cashUp) cashUp.addEventListener("click", () => increaseCashEntry());
+
+  updateSpeedMinesweeperCashUI();
+
+  loadLeaderboardForGame("speed-minesweeper", "speed-minesweeper-leaderboard");
+  const lbRefresh = document.getElementById("speed-minesweeper-leaderboard-refresh");
+  if (lbRefresh) {
+    lbRefresh.addEventListener("click", () => {
+      loadLeaderboardForGame("speed-minesweeper", "speed-minesweeper-leaderboard");
+    });
+  }
+
+  if (speedMinesweeperMessageHandler) {
+    window.removeEventListener("message", speedMinesweeperMessageHandler);
+  }
+  speedMinesweeperMessageHandler = (event) => {
+    if (!event.data || event.data.type !== "speed-minesweeper-gameover") return;
+    const iframe = document.getElementById("speed-minesweeper-iframe");
+    if (!iframe || event.source !== iframe.contentWindow) return;
+
+    const score = Number(event.data.score) || 0;
+    const scoreEl = document.getElementById("speed-minesweeper-score");
+    if (scoreEl) scoreEl.textContent = String(score);
+
+    handleSpeedMinesweeperGameOver(score);
+  };
+  window.addEventListener("message", speedMinesweeperMessageHandler);
+
+  if (speedMinesweeperState && speedMinesweeperState.inWager) {
+    if (wagerBtn) wagerBtn.style.display = "none";
+    if (speedMinesweeperState.serverSeedHash) {
+      const pfEl = document.getElementById("speed-minesweeper-provably-fair");
+      if (pfEl) {
+        pfEl.style.display = "block";
+        pfEl.innerHTML = renderProvablyFairBadge(speedMinesweeperState.serverSeedHash, true);
+        pfEl.onclick = () => window.showProvablyFairInfo(speedMinesweeperState.serverSeedHash, speedMinesweeperState.serverSeed, speedMinesweeperState.matchId);
+      }
+    }
+  }
+}
+
+function updateSpeedMinesweeperCashUI() {
+  const entry = getCurrentCashEntry();
+  const total = entry * 2;
+  const fee = total * 0.15;
+  const payout = total - fee;
+
+  const cashLabel = document.getElementById("speed-minesweeper-cash-label");
+  if (cashLabel) {
+    cashLabel.textContent = `Entry: $${entry.toFixed(2)}`;
+  }
+  const cashPayout = document.getElementById("speed-minesweeper-cash-payout");
+  if (cashPayout) {
+    cashPayout.textContent = `Win: $${payout.toFixed(2)}`;
+  }
+  const cashUp = document.getElementById("speed-minesweeper-cash-up");
+  const cashDown = document.getElementById("speed-minesweeper-cash-down");
+  if (cashUp) cashUp.disabled = currentCashEntryIndex >= CASH_ENTRY_AMOUNTS.length - 1;
+  if (cashDown) cashDown.disabled = currentCashEntryIndex <= 0;
+}
+
+async function handleSpeedMinesweeperWagerClick() {
+  if (!supabaseClient || !currentUser) {
+    openAuthModal("login");
+    return;
+  }
+
+  const canPlay = await checkBanBeforeGame('speed_minesweeper');
+  if (!canPlay) return;
+
+  const btn = document.getElementById("speed-minesweeper-wager");
+  if (!btn) return;
+
+  const cashEntry = getCurrentCashEntry();
+
+  const now = Date.now();
+  const last = lastWagerAtByGame["speed-minesweeper"] || 0;
+  if (now - last < WAGER_COOLDOWN_MS) {
+    const remaining = Math.ceil((WAGER_COOLDOWN_MS - (now - last)) / 1000);
+    alert(`Please wait ${remaining}s before starting another Speed Minesweeper tournament.`);
+    return;
+  }
+
+  if (speedMinesweeperState && speedMinesweeperState.inWager) {
+    btn.style.display = "none";
+    alert("You already have an active tournament run. Finish it before starting another.");
+    return;
+  }
+
+  if ((currentUser.cash_balance ?? 0) < cashEntry) {
+    alert(`Not enough cash for a $${cashEntry.toFixed(2)} entry. Please deposit more.`);
+    return;
+  }
+
+  btn.disabled = true;
+  btn.style.display = "none";
+
+  try {
+    const match = await createCashMatchForGame("speed-minesweeper", cashEntry);
+    if (!match) {
+      throw new Error("Could not create cash match.");
+    }
+    const slot = match.player2_id === currentUser.id ? "player2" : "player1";
+
+    lastWagerAtByGame["speed-minesweeper"] = now;
+
+    speedMinesweeperState = speedMinesweeperState || {};
+    speedMinesweeperState.inWager = true;
+    speedMinesweeperState.matchId = match.id;
+    speedMinesweeperState.playerSlot = slot;
+    speedMinesweeperState.gameOverReported = false;
+    speedMinesweeperState.cashEntry = cashEntry;
+    speedMinesweeperState.provablyFairId = match.provablyFairId || null;
+    speedMinesweeperState.serverSeedHash = match.serverSeedHash || null;
+    speedMinesweeperState.serverSeed = match.serverSeed || null;
+
+    await loadCurrentUser();
+
+    // Seed the game with the shared match id so both players in this wager
+    // face the exact same mine layout — pure skill decides the winner.
+    const iframe = document.getElementById("speed-minesweeper-iframe");
+    if (iframe) {
+      iframe.src = `games/speed-minesweeper/index.html?seed=${encodeURIComponent(match.id)}`;
+    }
+
+    const scoreEl = document.getElementById("speed-minesweeper-score");
+    if (scoreEl) scoreEl.textContent = "0";
+
+    const resultEl = document.getElementById("speed-minesweeper-wager-result");
+    if (resultEl) {
+      resultEl.textContent = `Match ${slot === "player2" ? "found" : "created"} ($${cashEntry.toFixed(2)} cash). Click START inside the game — your score when the run ends is submitted.`;
+    }
+
+    const pfEl = document.getElementById("speed-minesweeper-provably-fair");
+    if (pfEl && speedMinesweeperState.serverSeedHash) {
+      pfEl.style.display = "block";
+      pfEl.innerHTML = renderProvablyFairBadge(speedMinesweeperState.serverSeedHash, true);
+      pfEl.onclick = () => window.showProvablyFairInfo(speedMinesweeperState.serverSeedHash, null, speedMinesweeperState.matchId);
+    }
+  } catch (err) {
+    console.error(err);
+    alert(err.message || "Failed to start wager match.");
+  } finally {
+    if (btn && !(speedMinesweeperState && speedMinesweeperState.inWager)) {
+      btn.disabled = false;
+    }
+  }
+}
+
+async function handleSpeedMinesweeperGameOver(score) {
+  if (
+    !supabaseClient ||
+    !currentUser ||
+    !speedMinesweeperState?.inWager ||
+    !speedMinesweeperState.matchId ||
+    !speedMinesweeperState.playerSlot ||
+    speedMinesweeperState.gameOverReported
+  ) {
+    return;
+  }
+
+  speedMinesweeperState.gameOverReported = true;
+
+  const cashEntry = speedMinesweeperState.cashEntry;
+
+  try {
+    await submitMatchScore(speedMinesweeperState.matchId, speedMinesweeperState.playerSlot, score);
+    const resultEl = document.getElementById("speed-minesweeper-wager-result");
+    if (resultEl) {
+      resultEl.textContent = `$${cashEntry.toFixed(2)} cash run finished. Score: ${score}. Awaiting other player...`;
+    }
+
+    if (speedMinesweeperState.provablyFairId) {
+      await ProvablyFair.revealGame(speedMinesweeperState.provablyFairId);
+      const pfEl = document.getElementById("speed-minesweeper-provably-fair");
+      if (pfEl && speedMinesweeperState.serverSeedHash && speedMinesweeperState.serverSeed) {
+        pfEl.innerHTML = renderProvablyFairBadge(speedMinesweeperState.serverSeedHash, true);
+        pfEl.onclick = () => window.showProvablyFairInfo(speedMinesweeperState.serverSeedHash, speedMinesweeperState.serverSeed, speedMinesweeperState.matchId);
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    alert(err.message || "Failed to submit wager score.");
+  } finally {
+    speedMinesweeperState.inWager = false;
+    speedMinesweeperState.matchId = null;
+    speedMinesweeperState.playerSlot = null;
+    speedMinesweeperState.cashEntry = null;
+
+    const btn = document.getElementById("speed-minesweeper-wager");
+    if (btn) {
+      btn.disabled = false;
+      btn.style.display = "";
+    }
+  }
+}
+
 function stopAllGames() {
   if (flappyMessageHandler) {
     window.removeEventListener("message", flappyMessageHandler);
@@ -3366,6 +3679,12 @@ function stopAllGames() {
     colorRushMessageHandler = null;
   }
   colorRushState = null;
+
+  if (speedMinesweeperMessageHandler) {
+    window.removeEventListener("message", speedMinesweeperMessageHandler);
+    speedMinesweeperMessageHandler = null;
+  }
+  speedMinesweeperState = null;
 }
 
 // --- Flappy Race (original canvas Flappy Bird clone, iframe-embedded) ---
@@ -4223,6 +4542,9 @@ async function submitMatchScore(matchId, playerSlot, score) {
     }
     if (gameId === "color-rush") {
       return document.getElementById("color-rush-wager-result");
+    }
+    if (gameId === "speed-minesweeper") {
+      return document.getElementById("speed-minesweeper-wager-result");
     }
     return null;
   }

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Speed Minesweeper</title>
+    <link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+    <div class="game-container">
+        <div class="header">
+            <h1 class="title">SPEED MINESWEEPER</h1>
+            <div class="stats-row">
+                <div class="stat-box">
+                    <span class="stat-label">SCORE</span>
+                    <span id="score" class="stat-value">0</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">TIME</span>
+                    <span id="timer" class="stat-value">0.0</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">BEST</span>
+                    <span id="bestScore" class="stat-value">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="board-wrap">
+            <canvas id="gameCanvas"></canvas>
+        </div>
+
+        <div class="controls">
+            <div class="control-info">
+                <span class="key">TAP</span> reveal &nbsp;&middot;&nbsp;
+                <span class="key">HOLD</span> / <span class="key">FLAG</span> mode to flag
+                &nbsp;&middot;&nbsp; mine = game over
+            </div>
+            <div class="button-row">
+                <button id="startBtn" class="btn btn-start">START</button>
+                <button id="restartBtn" class="btn btn-restart" style="display:none;">RETRY</button>
+                <button id="flagBtn" class="btn btn-flag">FLAG: OFF</button>
+                <button id="soundBtn" class="btn btn-sound">SOUND ON</button>
+            </div>
+        </div>
+
+        <div id="gameOver" class="overlay" style="display:none;">
+            <h2 class="overlay-title dead" id="gameOverTitle">BOOM!</h2>
+            <p class="overlay-stat">Score: <span id="finalScore" class="hl">0</span></p>
+            <p class="overlay-stat">Time: <span id="finalTime" class="hl">0.0s</span></p>
+            <p class="overlay-stat">Cells cleared: <span id="finalCells" class="hl">0</span></p>
+            <p class="overlay-stat attempt-line">Attempt <span id="attemptNum" class="hl">1</span></p>
+        </div>
+    </div>
+
+    <script src="src/game.js"></script>
+</body>
+</html>
