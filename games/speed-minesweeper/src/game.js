@@ -115,31 +115,51 @@ function computeCounts(board) {
     }
 }
 
-// Move a mine out of idx deterministically (first safe cell in scan order).
-// Keeps the board the same for both players while guaranteeing the first
-// reveal can't be an instant loss.
-function relocateMine(board, idx) {
-    if (!board.mine[idx]) return;
-    board.mine[idx] = false;
-    for (let i = 0; i < board.mine.length; i++) {
-        if (!board.mine[i] && i !== idx) {
-            board.mine[i] = true;
-            break;
+// Auto-open a safe starting zone so the player always begins with numbers
+// already revealed instead of guessing. The zone's location is seeded, so
+// both players in a match get the identical opening — and it's never
+// scored, keeping runs fair.
+function openStartingZone(board) {
+    const total = C.cols * C.rows;
+    let idx = Math.floor(rng() * total);
+    // Scan forward for the first non-mine cell.
+    for (let i = 0; i < total; i++) {
+        const c = (idx + i) % total;
+        if (!board.mine[c]) { idx = c; break; }
+    }
+    const x = idx % C.cols;
+    const y = Math.floor(idx / C.cols);
+    const stack = [[x, y]];
+    const seen = new Set();
+    while (stack.length) {
+        const [cx, cy] = stack.pop();
+        const key = cy * C.cols + cx;
+        if (cx < 0 || cx >= C.cols || cy < 0 || cy >= C.rows || seen.has(key)) continue;
+        seen.add(key);
+        if (board.revealed[key] || board.mine[key]) continue;
+        board.revealed[key] = true;
+        if (board.count[key] === 0) {
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    if (dx === 0 && dy === 0) continue;
+                    stack.push([cx + dx, cy + dy]);
+                }
+            }
         }
     }
-    computeCounts(board);
 }
 
 function init() {
+    const board = newBoard();
+    openStartingZone(board);
     G = {
-        board: newBoard(),
+        board,
         playing: false,
         started: false,
         dead: false,
         won: false,
         score: 0,
         revealedCount: 0,
-        firstReveal: true,
         startTime: 0,
         elapsed: 0,
         lastRevealAt: 0,
@@ -171,10 +191,8 @@ function revealAt(x, y) {
     if (x < 0 || x >= C.cols || y < 0 || y >= C.rows) return;
     if (b.flagged[idx]) return;
 
-    if (G.firstReveal) {
-        G.firstReveal = false;
+    if (!G.startTime) {
         G.startTime = performance.now();
-        relocateMine(b, idx); // first reveal is always safe
         startTimer();
     }
 
