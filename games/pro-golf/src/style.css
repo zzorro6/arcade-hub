@@ -84,8 +84,8 @@ body {
 .board-wrap {
     position: relative;
     width: 100%;
-    aspect-ratio: 4 / 3;
-    max-height: 55vh;
+    aspect-ratio: 4 / 5;
+    max-height: 62vh;
     margin: 0 auto;
 }
 
@@ -267,7 +267,7 @@ body {
     .header { justify-content: center; gap: 6px; }
     .stats-row { width: 100%; justify-content: center; }
     .stat-box { flex: 1; padding: 4px 5px; }
-    .board-wrap { max-height: 44vh; aspect-ratio: 4 / 3; }
+    .board-wrap { max-height: 52vh; aspect-ratio: 4 / 5; }
     .btn { padding: 9px 12px; font-size: 0.76em; min-height: 40px; }
     .club-btn { flex: 1; }
     .spin-box span, .aim-box span { min-width: 64px; font-size: 0.8em; }
