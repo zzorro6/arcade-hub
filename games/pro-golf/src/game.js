@@ -198,12 +198,16 @@ function doShot() {
     const lieFactor = { tee: 1, fairway: 1, green: 1, rough: 0.85, sand: 0.6 }[lie] ?? 1;
 
     const ang = viewAng(hs);
-    let carry = club.dist * (hs.power / 100) * lieFactor;
+    const dNow = Math.hypot(pin.x - hs.ball.x, pin.y - hs.ball.y);
+    // Putter auto-scales to the distance remaining so close putts stay
+    // controllable — 100% ≈ just past the hole.
+    const clubDist = hs.club === 'putter' ? Math.max(8, Math.min(45, dNow * 1.3)) : club.dist;
+    let carry = clubDist * (hs.power / 100) * lieFactor;
     const w = windComponents(hole);
     carry *= 1 - (w.head * 0.006);
 
     const isPutter = hs.club === 'putter';
-    let roll = isPutter ? club.dist * (hs.power / 100) * 1.6 : carry * club.roll;
+    let roll = isPutter ? clubDist * (hs.power / 100) * 1.6 : carry * club.roll;
     roll *= 1 + 0.45 * hs.spin;
     if (lie === 'green') roll *= 1.35;
 
@@ -472,19 +476,21 @@ function drawMinimap(hole, d) {
     ctx.strokeStyle = 'rgba(255,255,255,0.2)';
     ctx.stroke();
 
-    // distance label
+    // distance label in its own top band so the course can't overlap it
+    ctx.fillStyle = 'rgba(255,255,255,0.07)';
+    ctx.fillRect(mx + 4, my + 4, mw - 8, mw * 0.26);
     ctx.fillStyle = '#fff';
     ctx.font = `bold ${Math.round(mw * 0.13)}px 'Courier New', monospace`;
     ctx.textAlign = 'center';
-    ctx.fillText(`${Math.round(d)}`, mx + mw / 2, my + mw * 0.19);
-    ctx.font = `${Math.round(mw * 0.075)}px 'Courier New', monospace`;
-    ctx.fillStyle = 'rgba(255,255,255,0.65)';
-    ctx.fillText('YARDS', mx + mw / 2, my + mw * 0.19 + mw * 0.11);
+    ctx.fillText(`${Math.round(d)}`, mx + mw / 2, my + mw * 0.18);
+    ctx.font = `${Math.round(mw * 0.07)}px 'Courier New', monospace`;
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText('YARDS TO PIN', mx + mw / 2, my + mw * 0.27);
 
     // course: x→vertical (pin top, tee bottom), y→horizontal
     const pad = mw * 0.14;
-    const mapH = mh - pad * 2 - mw * 0.22;
-    const top = my + pad + mw * 0.22;
+    const mapH = mh - pad * 2 - mw * 0.3;
+    const top = my + pad + mw * 0.3;
     const sc = mapH / hole.len;
     const mapX = (wx, wy) => ({ x: mx + mw / 2 + wy * sc * 1.9, y: top + (hole.len - wx) * sc });
 
@@ -585,29 +591,29 @@ function draw() {
     ctx.fillStyle = '#14532d';
     ctx.fillRect(0, horizonY - 3, CSS_W, 8);
 
-    // ── Fairway (projected ribbon) ──
+    // ── Fairway (projected ribbon, striped, always full hole so you can
+    // turn back toward the pin after overshooting) ──
     const step = 4;
-    const left = [], right = [];
-    for (let x = Math.max(0, hs.ball.x); x <= hole.len + 6; x += step) {
+    const pts = [];
+    for (let x = 0; x <= hole.len + 6; x += step) {
         const cyy = cy(hole, x);
-        const lp = project(x, cyy - C.fairwayHalfW);
-        const rp = project(x, cyy + C.fairwayHalfW);
-        if (lp) left.push(lp);
-        if (rp) right.push(rp);
+        pts.push({
+            x,
+            l: project(x, cyy - C.fairwayHalfW),
+            r: project(x, cyy + C.fairwayHalfW),
+        });
     }
-    if (left.length > 1 && right.length > 1) {
+    for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i], b = pts[i + 1];
+        if (!a.l || !a.r || !b.l || !b.r) continue;
         ctx.beginPath();
-        ctx.moveTo(left[0].x, left[0].y);
-        for (const p of left) ctx.lineTo(p.x, p.y);
-        for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i].x, right[i].y);
+        ctx.moveTo(a.l.x, a.l.y);
+        ctx.lineTo(a.r.x, a.r.y);
+        ctx.lineTo(b.r.x, b.r.y);
+        ctx.lineTo(b.l.x, b.l.y);
         ctx.closePath();
-        const fg = ctx.createLinearGradient(0, horizonY, 0, CSS_H);
-        fg.addColorStop(0, '#35a04b');
-        fg.addColorStop(1, '#4ecb62');
-        ctx.fillStyle = fg;
+        ctx.fillStyle = (Math.floor(a.x / 22) % 2 === 0) ? '#3cb154' : '#35a04b';
         ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-        ctx.stroke();
     }
 
     // ── Water + bunkers + green (projected) ──
@@ -669,7 +675,9 @@ function draw() {
         const lie = lieAt(hole, hs.ball.x, hs.ball.y);
         const lieFactor = { fairway: 1, green: 1, rough: 0.85, sand: 0.6 }[lie] ?? 1;
         const ang = viewAng(hs);
-        const ghostDist = club.dist * lieFactor * (hs.club === 'putter' ? 1 : 0.85);
+        const dNow = distToPin(hs, hs.ball);
+        const clubDist = hs.club === 'putter' ? Math.max(8, Math.min(45, dNow * 1.3)) : club.dist;
+        const ghostDist = clubDist * lieFactor * (hs.club === 'putter' ? 1 : 0.85);
         const gx2 = hs.ball.x + Math.cos(ang) * ghostDist;
         const gy2 = hs.ball.y + Math.sin(ang) * ghostDist;
         const gp2 = project(gx2, gy2);
@@ -681,13 +689,22 @@ function draw() {
             ctx.ellipse(gp2.x, gp2.y, 10, 5, 0, 0, Math.PI * 2);
             ctx.stroke();
             ctx.setLineDash([]);
+            // club+dist label at the ghost
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.font = `bold 11px 'Courier New', monospace`;
+            ctx.textAlign = 'center';
+            ctx.fillText(`${club.name} ~${Math.round(ghostDist)}y`, gp2.x, gp2.y - 10);
         }
-        // Lie chip near ball
-        const lieTxt = lie.toUpperCase();
-        ctx.fillStyle = lie === 'sand' ? '#fbbf24' : lie === 'rough' ? '#a3e635' : 'rgba(255,255,255,0.85)';
-        ctx.font = `bold 12px 'Courier New', monospace`;
+    }
+
+    // Floating yardage at the pin when close
+    const dPinNow = distToPin(hs, hs.ball);
+    if (gp && dPinNow <= 60 && (G.phase === 'aim' || G.phase === 'charge')) {
+        ctx.fillStyle = '#fff';
+        ctx.font = `bold 13px 'Courier New', monospace`;
         ctx.textAlign = 'center';
-        ctx.fillText(lieTxt, CSS_W * 0.5, CSS_H * 0.66);
+        const poleH2 = Math.min(120, 22 * gp.s * CSS_H * 0.9);
+        ctx.fillText(`${dPinNow.toFixed(1)}y`, gp.x, gp.y - poleH2 - 8);
     }
 
     // ── Ball + shadow (fixed bottom position) ──
@@ -722,30 +739,51 @@ function draw() {
     ctx.fillStyle = '#4ade80';
     ctx.fillText(`SCORE ${G.score}`, 20, 80);
 
+    // Lie + big remaining-distance chips
+    const lieNow = lieAt(hole, hs.ball.x, hs.ball.y);
+    ctx.fillStyle = 'rgba(10, 20, 40, 0.8)';
+    ctx.beginPath(); ctx.roundRect(10, 96, 110, 30, 10); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.stroke();
+    ctx.fillStyle = lieNow === 'sand' ? '#fbbf24' : lieNow === 'rough' ? '#a3e635' : '#e5e7eb';
+    ctx.fillText(lieNow.toUpperCase(), 20, 116);
+
+    ctx.fillStyle = 'rgba(10, 20, 40, 0.8)';
+    ctx.beginPath(); ctx.roundRect(10, 132, 110, 40, 10); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold 17px 'Courier New', monospace`;
+    ctx.fillText(`${dPinNow.toFixed(dPinNow < 30 ? 1 : 0)}y`, 20, 157);
+    ctx.font = `9px 'Courier New', monospace`;
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillText('TO PIN', 20, 168);
+
     drawMinimap(hole, distToPin(hs, hs.ball));
 
     // ── Power meter (right edge, like reference) ──
-    const mw2 = 26, mh2 = CSS_H * 0.42;
-    const mx2 = CSS_W - mw2 - 16, my2 = CSS_H * 0.36;
-    ctx.fillStyle = 'rgba(10, 20, 40, 0.75)';
-    ctx.beginPath(); ctx.roundRect(mx2, my2, mw2, mh2, 10); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.stroke();
+    const mw2 = 14, mh2 = CSS_H * 0.4;
+    const mx2 = CSS_W - mw2 - 18, my2 = CSS_H * 0.38;
+    ctx.fillStyle = 'rgba(8, 16, 32, 0.8)';
+    ctx.beginPath(); ctx.roundRect(mx2, my2, mw2, mh2, 8); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
     const fillH = mh2 * (hs.power / 100);
-    if (fillH > 0) {
+    if (fillH > 1) {
         const pg = ctx.createLinearGradient(0, my2 + mh2, 0, my2);
         pg.addColorStop(0, '#4ade80');
-        pg.addColorStop(0.7, '#fbbf24');
+        pg.addColorStop(0.65, '#fbbf24');
         pg.addColorStop(1, '#ef4444');
         ctx.fillStyle = pg;
         ctx.beginPath();
-        ctx.roundRect(mx2 + 3, my2 + mh2 - fillH + 3, mw2 - 6, Math.max(4, fillH - 6), 7);
+        ctx.roundRect(mx2 + 2.5, my2 + mh2 - fillH + 2.5, mw2 - 5, Math.max(4, fillH - 5), 5);
         ctx.fill();
     }
-    // segments
-    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-    for (let i = 1; i < 4; i++) {
-        const sy = my2 + (mh2 / 4) * i;
-        ctx.beginPath(); ctx.moveTo(mx2 + 3, sy); ctx.lineTo(mx2 + mw2 - 3, sy); ctx.stroke();
+    // tick marks at 25/50/75%
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 1;
+    for (const f of [0.25, 0.5, 0.75]) {
+        const sy = my2 + mh2 * (1 - f);
+        ctx.beginPath(); ctx.moveTo(mx2 - 5, sy); ctx.lineTo(mx2, sy); ctx.stroke();
     }
 
     // ── Hint text ──
