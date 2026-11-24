@@ -1156,6 +1156,7 @@ function setCashEntryIndex(nextIndex) {
   if (typeof updateGeometryRushCashUI === "function") updateGeometryRushCashUI();
   if (typeof updateColorRushCashUI === "function") updateColorRushCashUI();
   if (typeof updateSpeedMinesweeperCashUI === "function") updateSpeedMinesweeperCashUI();
+  if (typeof updateProGolfCashUI === "function") updateProGolfCashUI();
 }
 
 function increaseCashEntry() {
@@ -1788,6 +1789,13 @@ const gameCards = [
     mode: "1v1 skill",
     comingSoon: false,
   },
+  {
+    id: "pro-golf",
+    title: "Pro Golf",
+    description: "3-hole match play: par 3, 4 & 5. Pick a club, aim, put spin on the ball. Points for distance plus big bonuses for beating par — same course for both players.",
+    mode: "1v1 skill",
+    comingSoon: false,
+  },
 ];
 
 function renderHub() {
@@ -1799,6 +1807,7 @@ function renderHub() {
     "geometry-rush": { icon: "GEO", category: "action" },
     "color-rush": { icon: "COLOR", category: "puzzle" },
     "speed-minesweeper": { icon: "MINES", category: "puzzle" },
+    "pro-golf": { icon: "GOLF", category: "sports" },
   };
 
   mainContent.innerHTML = `
@@ -1813,6 +1822,7 @@ function renderHub() {
       <button class="hub-category" data-game-filter="live"><span class="live-dot"></span>Live</button>
       <button class="hub-category" data-game-filter="action">Action</button>
       <button class="hub-category" data-game-filter="puzzle">Puzzle</button>
+      <button class="hub-category" data-game-filter="sports">Sports</button>
     </nav>
 
     <section class="hub-games-section" id="hub-games">
@@ -1982,6 +1992,8 @@ let colorRushState = null;
 let colorRushMessageHandler = null;
 let speedMinesweeperState = null;
 let speedMinesweeperMessageHandler = null;
+let proGolfState = null;
+let proGolfMessageHandler = null;
 let germsWagerMode = "cash"; // "coin" or "cash" (coin wagers hidden for now)
 
 function renderGameScreen() {
@@ -2052,6 +2064,8 @@ function renderGameScreen() {
     mountColorRush();
   } else if (currentGameId === "speed-minesweeper") {
     mountSpeedMinesweeper();
+  } else if (currentGameId === "pro-golf") {
+    mountProGolf();
   } else {
     const root = document.getElementById("game-root");
     root.textContent = "Prototype coming soon.";
@@ -3365,6 +3379,252 @@ async function handleSpeedMinesweeperGameOver(score) {
   }
 }
 
+function mountProGolf() {
+  const root = document.getElementById("game-root");
+  root.innerHTML = `
+    <div class="germs-layout">
+      <div class="germs-top">
+        <div class="small-text">Score this round</div>
+        <div class="chicken-score" id="pro-golf-score">0</div>
+
+        <button class="btn btn-secondary" id="pro-golf-wager">Start Tournament</button>
+
+        <div id="pro-golf-cash-controls">
+          <div class="bet-controls">
+            <button class="bet-btn" id="pro-golf-cash-down">-</button>
+            <span class="bet-label" id="pro-golf-cash-label">Entry: $1.00</span>
+            <button class="bet-btn" id="pro-golf-cash-up">+</button>
+          </div>
+          <div class="small-text" id="pro-golf-cash-payout" style="margin-top:0.15rem; min-height:1em;">Win: $1.70</div>
+        </div>
+      </div>
+
+      <div class="card" data-leaderboard-card="true" style="margin-top:0.5rem; margin-bottom:0.75rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
+          <h3 class="section-title" style="margin-bottom:0;">Top 5 - Pro Golf</h3>
+          <button id="pro-golf-leaderboard-refresh" class="btn btn-secondary" style="padding:0.2rem 0.6rem;font-size:0.7rem;">Refresh</button>
+        </div>
+        <div id="pro-golf-leaderboard" class="small-text" style="margin-top:0.4rem; max-height:180px; overflow-y:auto;"></div>
+      </div>
+
+      <div class="pro-golf-frame-wrap">
+        <iframe
+          id="pro-golf-iframe"
+          src="games/pro-golf/index.html"
+          allow="autoplay"
+        ></iframe>
+      </div>
+      <div class="small-text" style="margin-top:0.5rem;">Click Start Tournament for a fresh cash round, then TEE OFF inside the game. Pick a club, aim, add up to 3 levels of backspin or topspin, and hold SHOOT to charge power. Score = distance covered + a bonus for beating par.</div>
+      <div class="small-text" id="pro-golf-wager-result" style="margin-top:0.25rem; min-height:1em;"></div>
+      <div id="pro-golf-provably-fair" style="margin-top:0.5rem;display:none;"></div>
+    </div>
+  `;
+
+  const wagerBtn = document.getElementById("pro-golf-wager");
+  if (wagerBtn) {
+    wagerBtn.addEventListener("click", handleProGolfWagerClick);
+  }
+
+  const cashDown = document.getElementById("pro-golf-cash-down");
+  const cashUp = document.getElementById("pro-golf-cash-up");
+  if (cashDown) cashDown.addEventListener("click", () => decreaseCashEntry());
+  if (cashUp) cashUp.addEventListener("click", () => increaseCashEntry());
+
+  updateProGolfCashUI();
+
+  loadLeaderboardForGame("pro-golf", "pro-golf-leaderboard");
+  const lbRefresh = document.getElementById("pro-golf-leaderboard-refresh");
+  if (lbRefresh) {
+    lbRefresh.addEventListener("click", () => {
+      loadLeaderboardForGame("pro-golf", "pro-golf-leaderboard");
+    });
+  }
+
+  if (proGolfMessageHandler) {
+    window.removeEventListener("message", proGolfMessageHandler);
+  }
+  proGolfMessageHandler = (event) => {
+    if (!event.data || event.data.type !== "pro-golf-gameover") return;
+    const iframe = document.getElementById("pro-golf-iframe");
+    if (!iframe || event.source !== iframe.contentWindow) return;
+
+    const score = Number(event.data.score) || 0;
+    const scoreEl = document.getElementById("pro-golf-score");
+    if (scoreEl) scoreEl.textContent = String(score);
+
+    handleProGolfGameOver(score);
+  };
+  window.addEventListener("message", proGolfMessageHandler);
+
+  if (proGolfState && proGolfState.inWager) {
+    if (wagerBtn) wagerBtn.style.display = "none";
+    if (proGolfState.serverSeedHash) {
+      const pfEl = document.getElementById("pro-golf-provably-fair");
+      if (pfEl) {
+        pfEl.style.display = "block";
+        pfEl.innerHTML = renderProvablyFairBadge(proGolfState.serverSeedHash, true);
+        pfEl.onclick = () => window.showProvablyFairInfo(proGolfState.serverSeedHash, proGolfState.serverSeed, proGolfState.matchId);
+      }
+    }
+  }
+}
+
+function updateProGolfCashUI() {
+  const entry = getCurrentCashEntry();
+  const total = entry * 2;
+  const fee = total * 0.15;
+  const payout = total - fee;
+
+  const cashLabel = document.getElementById("pro-golf-cash-label");
+  if (cashLabel) {
+    cashLabel.textContent = `Entry: $${entry.toFixed(2)}`;
+  }
+  const cashPayout = document.getElementById("pro-golf-cash-payout");
+  if (cashPayout) {
+    cashPayout.textContent = `Win: $${payout.toFixed(2)}`;
+  }
+  const cashUp = document.getElementById("pro-golf-cash-up");
+  const cashDown = document.getElementById("pro-golf-cash-down");
+  if (cashUp) cashUp.disabled = currentCashEntryIndex >= CASH_ENTRY_AMOUNTS.length - 1;
+  if (cashDown) cashDown.disabled = currentCashEntryIndex <= 0;
+}
+
+async function handleProGolfWagerClick() {
+  if (!supabaseClient || !currentUser) {
+    openAuthModal("login");
+    return;
+  }
+
+  const canPlay = await checkBanBeforeGame('pro_golf');
+  if (!canPlay) return;
+
+  const btn = document.getElementById("pro-golf-wager");
+  if (!btn) return;
+
+  const cashEntry = getCurrentCashEntry();
+
+  const now = Date.now();
+  const last = lastWagerAtByGame["pro-golf"] || 0;
+  if (now - last < WAGER_COOLDOWN_MS) {
+    const remaining = Math.ceil((WAGER_COOLDOWN_MS - (now - last)) / 1000);
+    alert(`Please wait ${remaining}s before starting another Pro Golf tournament.`);
+    return;
+  }
+
+  if (proGolfState && proGolfState.inWager) {
+    btn.style.display = "none";
+    alert("You already have an active tournament round. Finish it before starting another.");
+    return;
+  }
+
+  if ((currentUser.cash_balance ?? 0) < cashEntry) {
+    alert(`Not enough cash for a $${cashEntry.toFixed(2)} entry. Please deposit more.`);
+    return;
+  }
+
+  btn.disabled = true;
+  btn.style.display = "none";
+
+  try {
+    const match = await createCashMatchForGame("pro-golf", cashEntry);
+    if (!match) {
+      throw new Error("Could not create cash match.");
+    }
+    const slot = match.player2_id === currentUser.id ? "player2" : "player1";
+
+    lastWagerAtByGame["pro-golf"] = now;
+
+    proGolfState = proGolfState || {};
+    proGolfState.inWager = true;
+    proGolfState.matchId = match.id;
+    proGolfState.playerSlot = slot;
+    proGolfState.gameOverReported = false;
+    proGolfState.cashEntry = cashEntry;
+    proGolfState.provablyFairId = match.provablyFairId || null;
+    proGolfState.serverSeedHash = match.serverSeedHash || null;
+    proGolfState.serverSeed = match.serverSeed || null;
+
+    await loadCurrentUser();
+
+    // Seed the course with the shared match id so both players in this
+    // wager get the identical 3 holes, hazards and wind.
+    const iframe = document.getElementById("pro-golf-iframe");
+    if (iframe) {
+      iframe.src = `games/pro-golf/index.html?seed=${encodeURIComponent(match.id)}`;
+    }
+
+    const scoreEl = document.getElementById("pro-golf-score");
+    if (scoreEl) scoreEl.textContent = "0";
+
+    const resultEl = document.getElementById("pro-golf-wager-result");
+    if (resultEl) {
+      resultEl.textContent = `Match ${slot === "player2" ? "found" : "created"} ($${cashEntry.toFixed(2)} cash). Click TEE OFF inside the game — your total after 3 holes is submitted.`;
+    }
+
+    const pfEl = document.getElementById("pro-golf-provably-fair");
+    if (pfEl && proGolfState.serverSeedHash) {
+      pfEl.style.display = "block";
+      pfEl.innerHTML = renderProvablyFairBadge(proGolfState.serverSeedHash, true);
+      pfEl.onclick = () => window.showProvablyFairInfo(proGolfState.serverSeedHash, null, proGolfState.matchId);
+    }
+  } catch (err) {
+    console.error(err);
+    alert(err.message || "Failed to start wager match.");
+  } finally {
+    if (btn && !(proGolfState && proGolfState.inWager)) {
+      btn.disabled = false;
+    }
+  }
+}
+
+async function handleProGolfGameOver(score) {
+  if (
+    !supabaseClient ||
+    !currentUser ||
+    !proGolfState?.inWager ||
+    !proGolfState.matchId ||
+    !proGolfState.playerSlot ||
+    proGolfState.gameOverReported
+  ) {
+    return;
+  }
+
+  proGolfState.gameOverReported = true;
+
+  const cashEntry = proGolfState.cashEntry;
+
+  try {
+    await submitMatchScore(proGolfState.matchId, proGolfState.playerSlot, score);
+    const resultEl = document.getElementById("pro-golf-wager-result");
+    if (resultEl) {
+      resultEl.textContent = `$${cashEntry.toFixed(2)} cash round finished. Score: ${score}. Awaiting other player...`;
+    }
+
+    if (proGolfState.provablyFairId) {
+      await ProvablyFair.revealGame(proGolfState.provablyFairId);
+      const pfEl = document.getElementById("pro-golf-provably-fair");
+      if (pfEl && proGolfState.serverSeedHash && proGolfState.serverSeed) {
+        pfEl.innerHTML = renderProvablyFairBadge(proGolfState.serverSeedHash, true);
+        pfEl.onclick = () => window.showProvablyFairInfo(proGolfState.serverSeedHash, proGolfState.serverSeed, proGolfState.matchId);
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    alert(err.message || "Failed to submit wager score.");
+  } finally {
+    proGolfState.inWager = false;
+    proGolfState.matchId = null;
+    proGolfState.playerSlot = null;
+    proGolfState.cashEntry = null;
+
+    const btn = document.getElementById("pro-golf-wager");
+    if (btn) {
+      btn.disabled = false;
+      btn.style.display = "";
+    }
+  }
+}
+
 function stopAllGames() {
   if (flappyMessageHandler) {
     window.removeEventListener("message", flappyMessageHandler);
@@ -3410,6 +3670,12 @@ function stopAllGames() {
     speedMinesweeperMessageHandler = null;
   }
   speedMinesweeperState = null;
+
+  if (proGolfMessageHandler) {
+    window.removeEventListener("message", proGolfMessageHandler);
+    proGolfMessageHandler = null;
+  }
+  proGolfState = null;
 }
 
 // --- Flappy Race (original canvas Flappy Bird clone, iframe-embedded) ---
@@ -4267,6 +4533,9 @@ async function submitMatchScore(matchId, playerSlot, score) {
     }
     if (gameId === "speed-minesweeper") {
       return document.getElementById("speed-minesweeper-wager-result");
+    }
+    if (gameId === "pro-golf") {
+      return document.getElementById("pro-golf-wager-result");
     }
     return null;
   }

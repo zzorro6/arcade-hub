@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Pro Golf</title>
+    <link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+    <div class="game-container">
+        <div class="header">
+            <h1 class="title">PRO GOLF</h1>
+            <div class="stats-row">
+                <div class="stat-box"><span class="stat-label">SCORE</span><span id="score" class="stat-value">0</span></div>
+                <div class="stat-box"><span class="stat-label">HOLE</span><span id="holeNum" class="stat-value">1/3</span></div>
+                <div class="stat-box"><span class="stat-label">STROKES</span><span id="strokes" class="stat-value">0</span></div>
+                <div class="stat-box"><span class="stat-label">TO PIN</span><span id="distLeft" class="stat-value">--</span></div>
+            </div>
+        </div>
+
+        <div class="board-wrap">
+            <canvas id="gameCanvas"></canvas>
+        </div>
+
+        <div class="controls">
+            <div class="club-row">
+                <button class="btn club-btn" data-club="driver">DRIVER<small>~250y</small></button>
+                <button class="btn club-btn" data-club="iron">5-IRON<small>~150y</small></button>
+                <button class="btn club-btn" data-club="wedge">PW<small>~80y</small></button>
+                <button class="btn club-btn" data-club="putter">PUTTER<small>~25y</small></button>
+            </div>
+            <div class="shot-row">
+                <div class="spin-box">
+                    <button id="spinDown" class="btn mini-btn">-</button>
+                    <span id="spinLabel">SPIN 0</span>
+                    <button id="spinUp" class="btn mini-btn">+</button>
+                </div>
+                <div class="aim-box">
+                    <button id="aimLeft" class="btn mini-btn">◀</button>
+                    <span id="aimLabel">AIM 0°</span>
+                    <button id="aimRight" class="btn mini-btn">▶</button>
+                </div>
+                <button id="shootBtn" class="btn btn-shoot">HOLD<br>SHOOT</button>
+            </div>
+            <div class="control-info">
+                Drag on the course or use ◀ ▶ to aim &nbsp;·&nbsp; hold SHOOT to charge power &nbsp;·&nbsp; wind <span id="windInfo">--</span>
+            </div>
+        </div>
+
+        <div id="holeOver" class="overlay" style="display:none;">
+            <h2 class="overlay-title" id="holeTitle">HOLE COMPLETE</h2>
+            <p class="overlay-stat" id="holeResult">Par</p>
+            <p class="overlay-stat">Hole score: <span id="holeScore" class="hl">0</span></p>
+            <p class="overlay-stat">Total: <span id="totalScore" class="hl">0</span></p>
+            <button id="nextHoleBtn" class="btn btn-start">NEXT HOLE</button>
+        </div>
+
+        <div id="gameOver" class="overlay" style="display:none;">
+            <h2 class="overlay-title">ROUND OVER</h2>
+            <p class="overlay-stat">Final score: <span id="finalScore" class="hl">0</span></p>
+            <p class="overlay-stat" id="finalBreakdown"></p>
+            <button id="restartBtn" class="btn btn-restart">PLAY AGAIN</button>
+        </div>
+
+        <div id="startOverlay" class="overlay">
+            <h2 class="overlay-title">PRO GOLF</h2>
+            <p class="overlay-stat">3 holes — Par 3, 4 &amp; 5</p>
+            <p class="overlay-stat">Points = % of distance covered<br>+ finish bonus vs par</p>
+            <button id="startBtn" class="btn btn-start">TEE OFF</button>
+        </div>
+    </div>
+
+    <script src="src/game.js"></script>
+</body>
+</html>

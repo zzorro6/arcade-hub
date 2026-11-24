@@ -1194,6 +1194,7 @@ img, canvas, iframe, svg {
   .color-rush-frame-wrap,
   .geometry-rush-frame-wrap,
   .speed-minesweeper-frame-wrap,
+  .pro-golf-frame-wrap,
   .flappy-frame-wrap {
     height: auto;
     min-height: 360px;
@@ -1258,6 +1259,7 @@ img, canvas, iframe, svg {
   .color-rush-frame-wrap,
   .geometry-rush-frame-wrap,
   .speed-minesweeper-frame-wrap,
+  .pro-golf-frame-wrap,
   .flappy-frame-wrap {
     min-height: 320px;
     max-height: 68vh;
@@ -1395,6 +1397,7 @@ img, canvas, iframe, svg {
 .geometry-rush-frame-wrap,
 .color-rush-frame-wrap,
 .speed-minesweeper-frame-wrap,
+.pro-golf-frame-wrap,
 .flappy-frame-wrap {
   position: relative;
   width: 100%;
@@ -1410,6 +1413,7 @@ img, canvas, iframe, svg {
 .geometry-rush-frame-wrap iframe,
 .color-rush-frame-wrap iframe,
 .speed-minesweeper-frame-wrap iframe,
+.pro-golf-frame-wrap iframe,
 .flappy-frame-wrap iframe {
   width: 100%;
   height: 100%;
@@ -1772,6 +1776,7 @@ img, canvas, iframe, svg {
   .game-card--geometry-rush .game-card-art { background: linear-gradient(135deg, #581c87, #2563eb 48%, #06b6d4); }
   .game-card--color-rush .game-card-art { background: conic-gradient(from 45deg, #f43f5e, #facc15, #22c55e, #3b82f6, #a855f7, #f43f5e); }
   .game-card--speed-minesweeper .game-card-art { background: radial-gradient(circle at 30% 25%, #4ade80, #14532d 50%, #052e16); }
+  .game-card--pro-golf .game-card-art { background: linear-gradient(170deg, #86efac, #16a34a 45%, #1d4ed8 80%, #0b1f5e); }
 
   .game-ribbon,
   .game-live-badge,
