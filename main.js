@@ -2010,6 +2010,7 @@ function lockGameArea() {
 }
 
 function unlockGameArea() {
+  document.getElementById("game-shell")?.classList.add("game-started");
   document.querySelectorAll(".game-lock-overlay").forEach((o) => o.remove());
   const iframe = document.querySelector("#game-root iframe[data-locked-src]");
   if (iframe) {
@@ -2085,15 +2086,6 @@ function renderGameScreen() {
     });
   }
 
-  // The game stays locked behind an overlay until the player picks Start
-  // Tournament (any *-wager button) or Practice — no free preview play.
-  const inWager = [proGolfState, germsState, nightShiftState, geometryRushState,
-    colorRushState, speedMinesweeperState, flappyState].some((s) => s?.inWager);
-  if (!inWager) lockGameArea();
-  shell.addEventListener("click", (e) => {
-    if (e.target && e.target.id && e.target.id.endsWith("-wager")) unlockGameArea();
-  }, true);
-
   if (currentGameId === "flappy-race") {
     mountFlappyRace();
   } else if (currentGameId === "speed-dash") {
@@ -2114,6 +2106,15 @@ function renderGameScreen() {
     const root = document.getElementById("game-root");
     root.textContent = "Prototype coming soon.";
   }
+
+  // The game stays locked behind an overlay until the player picks Start
+  // Tournament (any *-wager button) or Practice — no free preview play.
+  const inWager = [proGolfState, germsState, nightShiftState, geometryRushState,
+    colorRushState, speedMinesweeperState, flappyState].some((s) => s?.inWager);
+  if (!inWager) lockGameArea();
+  shell.addEventListener("click", (e) => {
+    if (e.target && e.target.id && e.target.id.endsWith("-wager")) unlockGameArea();
+  }, true);
 }
 
 function mountAvoidGerms() {
@@ -3455,7 +3456,7 @@ function mountProGolf() {
         <iframe
           id="pro-golf-iframe"
           title="Pro Golf 3D"
-          src="games/golf-3d/dist/index.html${proGolfState?.inWager ? `?seed=${encodeURIComponent(proGolfState.matchId)}` : ""}"
+          src="games/golf-3d/dist/index.html?v=2${proGolfState?.inWager ? `&seed=${encodeURIComponent(proGolfState.matchId)}` : ""}"
           allow="autoplay"
         ></iframe>
       </div>

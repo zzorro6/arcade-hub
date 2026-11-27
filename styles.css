@@ -1636,7 +1636,7 @@ img, canvas, iframe, svg {
 
   .topbar {
     position: sticky;
-    top: 0.35rem;
+    top: max(0.35rem, env(safe-area-inset-top));
     z-index: 30;
     margin: 0 0 0.65rem;
     padding: 0.6rem 0.7rem;
@@ -1975,8 +1975,8 @@ img, canvas, iframe, svg {
 
   /* Minimal game screen: description + controls + leaderboard + the game.
      Only the redundant score counter stays hidden (games show their own). */
-  .game-shell .chicken-score,
-  .game-shell .small-text:has(+ .chicken-score) {
+  .game-shell:not(.game-started) .chicken-score,
+  .game-shell:not(.game-started) .small-text:has(+ .chicken-score) {
     display: none !important;
   }
 }
