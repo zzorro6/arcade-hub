@@ -2002,16 +2002,13 @@ function lockGameArea() {
     iframe.dataset.lockedSrc = iframe.src;
     iframe.src = "about:blank";
   }
-  if (getComputedStyle(host).position === "static") host.style.position = "relative";
-  const overlay = document.createElement("div");
-  overlay.className = "game-lock-overlay";
-  overlay.innerHTML = '<div class="game-lock-text">Start a tournament or tap Practice to play</div>';
-  host.appendChild(overlay);
+  host.hidden = true;
+  host.dataset.gameHost = "true";
 }
 
 function unlockGameArea() {
   document.getElementById("game-shell")?.classList.add("game-started");
-  document.querySelectorAll(".game-lock-overlay").forEach((o) => o.remove());
+  document.querySelectorAll('[data-game-host]').forEach((host) => { host.hidden = false; });
   const iframe = document.querySelector("#game-root iframe[data-locked-src]");
   if (iframe) {
     iframe.src = iframe.dataset.lockedSrc;
@@ -2112,6 +2109,7 @@ function renderGameScreen() {
   const inWager = [proGolfState, germsState, nightShiftState, geometryRushState,
     colorRushState, speedMinesweeperState, flappyState].some((s) => s?.inWager);
   if (!inWager) lockGameArea();
+  else unlockGameArea();
   shell.addEventListener("click", (e) => {
     if (e.target && e.target.id && e.target.id.endsWith("-wager")) unlockGameArea();
   }, true);

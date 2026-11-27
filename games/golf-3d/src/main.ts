@@ -84,7 +84,7 @@ function playBonusMessage(): void {
 }
 
 function awardGreenBonus(sunk = false): void {
-  if (greenBonusAwarded || (!sunk && level.surfaceAt(ball.position.x, ball.position.z) !== 'green')) return;
+  if (greenBonusAwarded || shotStartedOnGreen || (!sunk && level.surfaceAt(ball.position.x, ball.position.z) !== 'green')) return;
   greenBonusAwarded = true;
   const points = firstGreenBonus(sunk ? 0 : distanceToPin() / 0.9144);
   roundPoints += points;
@@ -1216,6 +1216,7 @@ function frame(now: number): void {
       const drop = _v.copy(findDropSpot(ball.lastSafe, lastRest));
       drop.y = level.heightAt(drop.x, drop.z) + BALL_RADIUS;
       ball.placeAt(drop);
+      if (level.surfaceAt(drop.x, drop.z) === 'green') greenBonusAwarded = true;
       onBallStopped();
     }
   }

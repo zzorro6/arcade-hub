@@ -1605,6 +1605,15 @@ img, canvas, iframe, svg {
 }
 
 /* Covers the game until the player picks Start Tournament or Practice. */
+.game-shell [data-game-host][hidden] {
+  display: none !important;
+}
+.game-shell.game-started [data-leaderboard-card] {
+  display: none !important;
+}
+.game-shell:not(.game-started) [data-leaderboard-card] {
+  display: block !important;
+}
 .game-lock-overlay {
   position: absolute;
   inset: 0;
@@ -1944,7 +1953,7 @@ img, canvas, iframe, svg {
   .topbar.topbar--compact #spin-banner,
   .topbar.topbar--compact #header-deposit-btn,
   .topbar.topbar--compact #balance-refresh-btn {
-    display: none;
+    display: none !important;
   }
   .topbar.topbar--compact .auth-logged-in {
     padding: 0;
@@ -1963,6 +1972,10 @@ img, canvas, iframe, svg {
 
   /* Compact profile/auth forms — full-width pills look oversized on phones. */
   .auth-forms input {
+    flex: 0 0 auto;
+    height: 44px;
+    min-height: 44px;
+    max-height: 44px;
     border-radius: 0.7rem;
     padding: 0.55rem 0.85rem;
     font-size: 0.85rem;
