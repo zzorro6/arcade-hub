@@ -1352,19 +1352,10 @@ function renderAuth() {
           </button>
         </div>
         <div class="auth-actions-row">
-          <button id="profile-btn" class="btn btn-secondary">Profile</button>
           <button id="logout-btn" class="btn btn-secondary" style="margin-left:auto;">Log out</button>
         </div>
       </div>
     `;
-
-    const profileBtn = document.getElementById("profile-btn");
-    if (profileBtn) {
-      profileBtn.addEventListener("click", () => {
-        currentView = "profile";
-        render();
-      });
-    }
 
     const balanceRefreshBtn = document.getElementById("balance-refresh-btn");
     if (balanceRefreshBtn) {
@@ -1907,8 +1898,12 @@ function renderHub() {
       document.querySelectorAll("[data-mobile-target]").forEach((btn) => btn.classList.toggle("active", btn === navBtn));
       if (gamesPanel) gamesPanel.classList.toggle("mobile-panel-hidden", target === "results");
       if (resultsPanel) resultsPanel.classList.toggle("mobile-panel-active", target === "results");
-      if (target === "account") document.querySelector(".topbar")?.scrollIntoView({ behavior: "smooth" });
-      else window.scrollTo({ top: 0, behavior: "smooth" });
+      if (target === "account") {
+        currentView = "profile";
+        render();
+        return;
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
     });
   });
 
@@ -2016,6 +2011,7 @@ function renderGameScreen() {
           </div>
         </div>
         <div class="game-shell-header-actions">
+          <button class="btn btn-secondary" id="game-practice">Practice</button>
           <button
             class="btn btn-secondary fullscreen-icon-btn"
             id="game-fullscreen-toggle"
@@ -2047,6 +2043,16 @@ function renderGameScreen() {
   if (fullscreenBtn && shell) {
     fullscreenBtn.addEventListener("click", () => {
       toggleGameFullscreen();
+    });
+  }
+
+  const practiceBtn = document.getElementById("game-practice");
+  if (practiceBtn) {
+    practiceBtn.addEventListener("click", () => {
+      // stopAllGames clears every wager state, so this remount is pure free
+      // play — no match seed, no score submission.
+      stopAllGames();
+      renderGameScreen();
     });
   }
 
@@ -7084,6 +7090,14 @@ function mountSpeedDash() {
 
 // --- Init ---
 loadCurrentUser();
+
+// Collapse the account card to just the balance once the page scrolls.
+const topbarEl = document.querySelector(".topbar");
+if (topbarEl) {
+  const syncTopbar = () => topbarEl.classList.toggle("topbar--compact", window.scrollY > 70);
+  window.addEventListener("scroll", syncTopbar, { passive: true });
+  syncTopbar();
+}
 
 // Logo click → home
 const homeLogo = document.querySelector(".logo");

@@ -1889,4 +1889,56 @@ img, canvas, iframe, svg {
     font-size: 1.15rem;
     line-height: 1;
   }
+
+  /* Kill rubber-band overscroll (the stray edge line on home-screen launches)
+     and hide the page scrollbar while swiping. */
+  html,
+  body {
+    overscroll-behavior: none;
+    scrollbar-width: none;
+  }
+  body::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Collapsed topbar: while scrolled, show only the balance. */
+  .topbar.topbar--compact {
+    padding: 0.3rem 0.7rem;
+  }
+  .topbar.topbar--compact .logo,
+  .topbar.topbar--compact #pwa-install-container,
+  .topbar.topbar--compact .auth-username,
+  .topbar.topbar--compact .auth-user-meta > a,
+  .topbar.topbar--compact .auth-actions-row,
+  .topbar.topbar--compact .auth-logged-in > .small-text,
+  .topbar.topbar--compact #header-deposit-btn,
+  .topbar.topbar--compact #balance-refresh-btn {
+    display: none;
+  }
+  .topbar.topbar--compact .auth-logged-in {
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+  }
+  .topbar.topbar--compact .auth-user-row {
+    margin: 0;
+    justify-content: flex-end;
+  }
+  .topbar.topbar--compact .balance-amount {
+    font-size: 0.95rem;
+    font-weight: 800;
+  }
+
+  /* Minimal game screen: description + Start Tournament + Practice + the
+     game itself. Leaderboards, score counters and entry selectors hide on
+     phones; entry stays at the chosen/default amount. */
+  .game-shell [data-leaderboard-card],
+  .game-shell .chicken-score,
+  .game-shell .small-text:has(+ .chicken-score),
+  .game-shell [id$="-cash-controls"],
+  .game-shell [id$="-coin-controls"],
+  .game-shell [id$="-mode-toggle"] {
+    display: none !important;
+  }
 }

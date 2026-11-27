@@ -719,3 +719,105 @@ button:disabled {
   gap: 10px;
   margin: 10px 0;
 }
+
+/* --- Phones: shrink HUD panels so they don't overlap the course ---------- */
+@media (max-width: 640px) {
+  .panel {
+    top: 8px;
+    left: 8px;
+    min-width: 132px;
+    padding: 8px 10px;
+    border-radius: 10px;
+  }
+  .panel .title {
+    font-size: 13px;
+    margin-bottom: 5px;
+  }
+  .panel dl {
+    font-size: 11px;
+    gap: 2px 8px;
+  }
+  /* Hide the least essential row (slope detail) on small screens. */
+  #stats dl > :nth-last-child(-n + 2) {
+    display: none;
+  }
+  .top-right {
+    top: 8px;
+    right: 8px;
+    gap: 6px;
+  }
+  #wind {
+    padding: 6px 9px;
+    gap: 7px;
+  }
+  #wind-dial {
+    width: 38px;
+    height: 38px;
+  }
+  .wind-label,
+  #wind-relative {
+    font-size: 9px;
+  }
+  #wind-speed {
+    font-size: 13px;
+  }
+  #map {
+    padding: 5px;
+  }
+  #minimap {
+    width: 88px;
+    height: 100px;
+  }
+  #map-label {
+    font-size: 10px;
+  }
+  #pin-marker {
+    top: 52px;
+    padding: 4px 9px;
+    font-size: 11px;
+    gap: 5px;
+  }
+  .pin-flag {
+    width: 9px;
+    height: 12px;
+  }
+  #power {
+    bottom: 118px;
+    height: 14px;
+    width: min(240px, calc(100% - 24px));
+  }
+  #power-label {
+    font-size: 10px;
+  }
+  #arcade-controls {
+    gap: 4px;
+    width: 98%;
+  }
+  #arcade-controls button {
+    min-height: 38px;
+    padding: 6px 10px;
+    border-radius: 9px;
+    font-size: 12px;
+  }
+  #arcade-controls span {
+    font-size: 11px;
+  }
+  #toast {
+    font-size: 12px;
+    padding: 7px 12px;
+  }
+  #result .card {
+    padding: 18px 16px;
+    min-width: min(280px, calc(100vw - 24px));
+  }
+  #result h2 {
+    font-size: 24px;
+  }
+  .score-row {
+    font-size: 13px;
+    padding: 5px 2px;
+  }
+  .score-row.final {
+    font-size: 16px;
+  }
+}
