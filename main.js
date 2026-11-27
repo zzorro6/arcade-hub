@@ -1111,7 +1111,7 @@ const WAGER_AMOUNTS = [50, 100, 500, 1000];
 let currentWagerIndex = 1; // start at 100 coins
 const WAGER_COOLDOWN_MS = 10_000; // 10 seconds between wagers per game
 const lastWagerAtByGame = {}; // { [gameId]: timestamp }
-const MATCH_TIMEOUT_MS = 3 * 24 * 60 * 60 * 1000; // 3 days before treating unmatched score as a tie/refund (TODO: add admin-dashboard "request refund" option for pending matches)
+const MATCH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes: unresolved matches are auto-completed and refunded (TODO: add admin-dashboard "request refund" option for pending matches)
 
 // Cash tournament entry amounts (real money)
 const CASH_ENTRY_AMOUNTS = [0.5, 1, 2, 5, 10, 20];
@@ -3410,11 +3410,12 @@ function mountProGolf() {
       <div class="pro-golf-frame-wrap">
         <iframe
           id="pro-golf-iframe"
-          src="games/pro-golf/index.html"
+          title="Pro Golf 3D"
+          src="games/golf-3d/dist/index.html${proGolfState?.inWager ? `?seed=${encodeURIComponent(proGolfState.matchId)}` : ""}"
           allow="autoplay"
         ></iframe>
       </div>
-      <div class="small-text" style="margin-top:0.5rem;">Click Start Tournament for a fresh cash round, then TEE OFF inside the game. Pick a club, aim, add up to 3 levels of backspin or topspin, and hold SHOOT to charge power. Score = distance covered + a bonus for beating par.</div>
+      <div class="small-text" style="margin-top:0.5rem;">Play one seeded hole — both tournament players get the identical par 3, 4, or 5. Pull down on the ball to charge power, drag left or right to aim, release to shoot. Drag elsewhere to rotate the camera, tap the map to enlarge it. Each shot earns the % of remaining distance it covers, plus a finish bonus versus par.</div>
       <div class="small-text" id="pro-golf-wager-result" style="margin-top:0.25rem; min-height:1em;"></div>
       <div id="pro-golf-provably-fair" style="margin-top:0.5rem;display:none;"></div>
     </div>
@@ -3444,15 +3445,22 @@ function mountProGolf() {
     window.removeEventListener("message", proGolfMessageHandler);
   }
   proGolfMessageHandler = (event) => {
-    if (!event.data || event.data.type !== "pro-golf-gameover") return;
+    if (!event.data || (event.data.type !== "pro-golf-gameover" && event.data.type !== "pro-golf-progress")) return;
     const iframe = document.getElementById("pro-golf-iframe");
+    // file:// pages report an opaque "null" origin, so only verify the sender window.
     if (!iframe || event.source !== iframe.contentWindow) return;
+    if (proGolfState?.inWager && event.data.seed !== String(proGolfState.matchId)) return;
 
-    const score = Number(event.data.score) || 0;
+    const score = event.data.score;
+    if (!Number.isSafeInteger(score) || score < 0 || score > 21300) return;
     const scoreEl = document.getElementById("pro-golf-score");
     if (scoreEl) scoreEl.textContent = String(score);
 
-    handleProGolfGameOver(score);
+    if (event.data.type === "pro-golf-progress") {
+      handleProGolfProgress(score);
+    } else {
+      handleProGolfGameOver(score);
+    }
   };
   window.addEventListener("message", proGolfMessageHandler);
 
@@ -3550,7 +3558,7 @@ async function handleProGolfWagerClick() {
     // wager get the identical 3 holes, hazards and wind.
     const iframe = document.getElementById("pro-golf-iframe");
     if (iframe) {
-      iframe.src = `games/pro-golf/index.html?seed=${encodeURIComponent(match.id)}`;
+      iframe.src = `games/golf-3d/dist/index.html?seed=${encodeURIComponent(match.id)}`;
     }
 
     const scoreEl = document.getElementById("pro-golf-score");
@@ -3574,6 +3582,23 @@ async function handleProGolfWagerClick() {
     if (btn && !(proGolfState && proGolfState.inWager)) {
       btn.disabled = false;
     }
+  }
+}
+
+async function handleProGolfProgress(score) {
+  if (
+    !supabaseClient ||
+    !currentUser ||
+    !proGolfState?.inWager ||
+    !proGolfState.matchId ||
+    !proGolfState.playerSlot
+  ) {
+    return;
+  }
+  try {
+    await submitMatchScore(proGolfState.matchId, proGolfState.playerSlot, score, false);
+  } catch (err) {
+    console.error("Failed to submit live score", err);
   }
 }
 
@@ -4497,7 +4522,7 @@ async function createCashMatchForGame(gameId, cashEntry) {
   }
 }
 
-async function submitMatchScore(matchId, playerSlot, score) {
+async function submitMatchScore(matchId, playerSlot, score, finished = true) {
   if (!supabaseClient || !currentUser) return;
 
   // Support player1, player2, or player3
@@ -4555,6 +4580,23 @@ async function submitMatchScore(matchId, playerSlot, score) {
       return;
     }
 
+    // Live score update (mid-round): record it so a player who closes early
+    // still has a score on the match, but don't resolve yet.
+    if (!finished) return;
+
+    // Track which players finished in the status column ("fin:p1,p2"), so a
+    // match resolves the instant BOTH players hole out — not when someone has
+    // merely submitted a live partial score.
+    const fins = (match.status || "").startsWith("fin:")
+      ? match.status.slice(4).split(",")
+      : [];
+    if (!fins.includes(playerSlot)) fins.push(playerSlot);
+    const finStatus = `fin:${fins.sort().join(",")}`;
+    if (match.status !== "complete" && match.status !== finStatus) {
+      await supabaseClient.from("matches").update({ status: finStatus }).eq("id", match.id);
+      match.status = finStatus;
+    }
+
     const nowMs = Date.now();
     const createdMs = match.created_at ? new Date(match.created_at).getTime() : null;
 
@@ -4562,14 +4604,31 @@ async function submitMatchScore(matchId, playerSlot, score) {
     const maxPlayers = match.max_players || 2;
     const allPlayersJoined = match.player1_id && match.player2_id && 
                              (maxPlayers < 3 || match.player3_id);
-    const allScoresSubmitted = match.player1_score !== null && 
-                               match.player2_score !== null &&
-                               (maxPlayers < 3 || match.player3_score !== null);
-    
-    if (!allPlayersJoined || !allScoresSubmitted) {
+    // A match resolves when every joined player has FINISHED (status fin:pN),
+    // not merely recorded a live score.
+    const requiredSlots = ["player1", "player2"];
+    if (match.player3_id) requiredSlots.push("player3");
+    const allFinished = match.status === "complete" || requiredSlots.every((s) => fins.includes(s));
+
+    if (!allPlayersJoined || !allFinished) {
       // Still waiting for the other player. If the match is older than the timeout,
-      // treat it as a tie and refund this player.
+      // resolve by score — a submitted score (even partial) stands, a missing one forfeits.
       if (createdMs && nowMs - createdMs >= MATCH_TIMEOUT_MS) {
+        const s1 = match.player1_score, s2 = match.player2_score;
+        if (match.player2_id && (s1 != null || s2 != null)) {
+          const staleWinner =
+            (s2 ?? -Infinity) > (s1 ?? -Infinity) ? match.player2_id :
+            (s1 ?? -Infinity) > (s2 ?? -Infinity) ? match.player1_id : null;
+          await supabaseClient
+            .from("matches")
+            .update(staleWinner ? { status: "complete", winner_id: staleWinner } : { status: "complete" })
+            .eq("id", match.id)
+            .neq("status", "complete");
+          if (staleWinner) {
+            try { await supabaseClient.rpc("rpc_settle_match", { p_match_id: match.id }); } catch (e) { console.error(e); }
+          }
+          return submitMatchScore(matchId, playerSlot, score);
+        }
         // Conditional update: only flip to "complete" if the match hasn't
         // already been resolved with a real winner by a concurrent client
         // (e.g. the opponent finished right around the same time). If 0
@@ -4601,8 +4660,7 @@ async function submitMatchScore(matchId, playerSlot, score) {
           const already = window.localStorage.getItem(refundKey);
           if (!already && refundAmount) {
             if (isCashMatch) {
-              // Cash refund would need server-side handling - for now just mark as refunded
-              // The server should handle this via a separate flow
+              await adjustCurrentUserCash(refundAmount);
             } else {
               await adjustCurrentUserCoins(refundAmount);
             }
@@ -4740,6 +4798,25 @@ async function submitMatchScore(matchId, playerSlot, score) {
   } catch (e) {
     console.error(e);
   }
+}
+
+async function adjustCurrentUserCash(delta) {
+  if (!supabaseClient || !currentUser || !delta) return;
+
+  const { data, error } = await supabaseClient
+    .from("profiles")
+    .update({ cash_balance: Number(((currentUser.cash_balance ?? 0) + delta).toFixed(2)) })
+    .eq("id", currentUser.id)
+    .select("cash_balance")
+    .single();
+
+  if (error) {
+    console.error(error);
+    throw error;
+  }
+
+  currentUser.cash_balance = data.cash_balance;
+  render();
 }
 
 async function adjustCurrentUserCoins(delta) {
@@ -4937,6 +5014,27 @@ async function loadAndRenderWagers() {
       const isStale = createdMs && Date.now() - createdMs >= MATCH_TIMEOUT_MS;
       if (isStale) {
         try {
+          // Any submitted score resolves the match by score — a live partial
+          // score still counts; a side that never submitted forfeits. Only a
+          // match with no scores at all falls through to a refund.
+          const anyScored = m.player2_id && (m.player1_score != null || m.player2_score != null);
+          if (anyScored) {
+            const staleWinner =
+              (m.player2_score ?? -Infinity) > (m.player1_score ?? -Infinity) ? m.player2_id :
+              (m.player1_score ?? -Infinity) > (m.player2_score ?? -Infinity) ? m.player1_id : null;
+            const { data: scoreRows, error: scoreErr } = await supabaseClient
+              .from("matches")
+              .update(staleWinner ? { status: "complete", winner_id: staleWinner } : { status: "complete" })
+              .eq("id", m.id)
+              .neq("status", "complete")
+              .select("id");
+            if (!scoreErr && scoreRows && scoreRows.length > 0 && staleWinner) {
+              try { await supabaseClient.rpc("rpc_settle_match", { p_match_id: m.id }); } catch (e) { console.error(e); }
+              await loadCurrentUser();
+            }
+            m.status = "complete";
+            m.winner_id = staleWinner;
+          }
           // Conditional update: only flip to "complete" if it hasn't
           // already been resolved with a real winner by a concurrent client.
           const { data: updatedRows, error: updateError } = await supabaseClient
@@ -4979,8 +5077,7 @@ async function loadAndRenderWagers() {
         const already = window.localStorage.getItem(refundKey);
         if (!already && refundAmount) {
           if (isCashMatch) {
-            // Cash refund would need server-side handling - for now just mark as refunded
-            // The server should handle this via a separate flow
+            await adjustCurrentUserCash(refundAmount);
           } else {
             await adjustCurrentUserCoins(refundAmount);
           }
@@ -5098,7 +5195,8 @@ async function loadAndRenderWagers() {
       statusKey = "inprogress";
     } else if (m.status === "complete") {
       if (!m.winner_id) {
-        statusLabel = "Completed - tie";
+        const refundEntry = m.currency === "CASH" ? (m.cash_entry || 0) : (m.wager || 0);
+        statusLabel = m.currency === "CASH" ? `Refunded $${refundEntry.toFixed(2)}` : `Refunded ${refundEntry} coins`;
         statusKey = "tie";
         isTie = true;
       } else if (m.winner_id === currentUser.id) {
@@ -5141,7 +5239,7 @@ async function loadAndRenderWagers() {
       }
     } else if (m.status === "complete" && isTie) {
       net = 0;
-      displayAmount = 0;
+      displayAmount = entryAmount; // show the refunded entry, not $0
     } else if (m.status === "complete" && !ledger) {
       // Fallback for older matches without ledger rows
       const total = entryAmount * 2;
