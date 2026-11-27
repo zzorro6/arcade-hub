@@ -1333,6 +1333,7 @@ function renderAuth() {
         </div>
 
         <div
+          id="spin-banner"
           class="small-text"
           style="margin-top:0.6rem;margin-bottom:0.4rem;padding:0.4rem 0.6rem;border-radius:999px;background:linear-gradient(90deg, rgba(250,204,21,0.12), rgba(251,146,60,0.12));border:1px solid rgba(250,204,21,0.4);display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center;justify-content:space-between;"
         >
@@ -1991,6 +1992,32 @@ let proGolfState = null;
 let proGolfMessageHandler = null;
 let germsWagerMode = "cash"; // "coin" or "cash" (coin wagers hidden for now)
 
+function lockGameArea() {
+  const root = document.getElementById("game-root");
+  if (!root) return;
+  const iframe = root.querySelector("iframe");
+  const host = iframe ? iframe.parentElement : root.querySelector("#avoid-germs-container, #speed-dash-container");
+  if (!host) return;
+  if (iframe && !iframe.dataset.lockedSrc) {
+    iframe.dataset.lockedSrc = iframe.src;
+    iframe.src = "about:blank";
+  }
+  if (getComputedStyle(host).position === "static") host.style.position = "relative";
+  const overlay = document.createElement("div");
+  overlay.className = "game-lock-overlay";
+  overlay.innerHTML = '<div class="game-lock-text">Start a tournament or tap Practice to play</div>';
+  host.appendChild(overlay);
+}
+
+function unlockGameArea() {
+  document.querySelectorAll(".game-lock-overlay").forEach((o) => o.remove());
+  const iframe = document.querySelector("#game-root iframe[data-locked-src]");
+  if (iframe) {
+    iframe.src = iframe.dataset.lockedSrc;
+    delete iframe.dataset.lockedSrc;
+  }
+}
+
 function renderGameScreen() {
   const game = gameCards.find((g) => g.id === currentGameId);
   if (!game) {
@@ -2051,10 +2078,21 @@ function renderGameScreen() {
     practiceBtn.addEventListener("click", () => {
       // stopAllGames clears every wager state, so this remount is pure free
       // play — no match seed, no score submission.
-      stopAllGames();
+      try { stopAllGames(); } catch (e) { console.error(e); }
+      exitGameFullscreen();
       renderGameScreen();
+      unlockGameArea();
     });
   }
+
+  // The game stays locked behind an overlay until the player picks Start
+  // Tournament (any *-wager button) or Practice — no free preview play.
+  const inWager = [proGolfState, germsState, nightShiftState, geometryRushState,
+    colorRushState, speedMinesweeperState, flappyState].some((s) => s?.inWager);
+  if (!inWager) lockGameArea();
+  shell.addEventListener("click", (e) => {
+    if (e.target && e.target.id && e.target.id.endsWith("-wager")) unlockGameArea();
+  }, true);
 
   if (currentGameId === "flappy-race") {
     mountFlappyRace();

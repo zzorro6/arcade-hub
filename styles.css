@@ -1604,6 +1604,27 @@ img, canvas, iframe, svg {
   margin-top: 0.75rem;
 }
 
+/* Covers the game until the player picks Start Tournament or Practice. */
+.game-lock-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  border-radius: inherit;
+  background: rgba(6, 8, 14, 0.92);
+}
+.game-lock-text {
+  padding: 0.7rem 1.2rem;
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #d7dae0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+}
+
 @media (max-width: 640px) {
   body {
     background: #050608;
@@ -1902,6 +1923,15 @@ img, canvas, iframe, svg {
   }
 
   /* Collapsed topbar: while scrolled, show only the balance. */
+  .topbar {
+    transition: padding 0.25s ease, background 0.25s ease;
+  }
+  .topbar .logo,
+  .topbar .auth-logged-in > .small-text,
+  .topbar .auth-actions-row,
+  .topbar .auth-username {
+    transition: opacity 0.2s ease;
+  }
   .topbar.topbar--compact {
     padding: 0.3rem 0.7rem;
   }
@@ -1911,6 +1941,7 @@ img, canvas, iframe, svg {
   .topbar.topbar--compact .auth-user-meta > a,
   .topbar.topbar--compact .auth-actions-row,
   .topbar.topbar--compact .auth-logged-in > .small-text,
+  .topbar.topbar--compact #spin-banner,
   .topbar.topbar--compact #header-deposit-btn,
   .topbar.topbar--compact #balance-refresh-btn {
     display: none;
@@ -1930,15 +1961,22 @@ img, canvas, iframe, svg {
     font-weight: 800;
   }
 
-  /* Minimal game screen: description + Start Tournament + Practice + the
-     game itself. Leaderboards, score counters and entry selectors hide on
-     phones; entry stays at the chosen/default amount. */
-  .game-shell [data-leaderboard-card],
+  /* Compact profile/auth forms — full-width pills look oversized on phones. */
+  .auth-forms input {
+    border-radius: 0.7rem;
+    padding: 0.55rem 0.85rem;
+    font-size: 0.85rem;
+  }
+  .auth-forms .btn {
+    border-radius: 0.7rem;
+    padding: 0.6rem 1rem;
+    font-size: 0.88rem;
+  }
+
+  /* Minimal game screen: description + controls + leaderboard + the game.
+     Only the redundant score counter stays hidden (games show their own). */
   .game-shell .chicken-score,
-  .game-shell .small-text:has(+ .chicken-score),
-  .game-shell [id$="-cash-controls"],
-  .game-shell [id$="-coin-controls"],
-  .game-shell [id$="-mode-toggle"] {
+  .game-shell .small-text:has(+ .chicken-score) {
     display: none !important;
   }
 }

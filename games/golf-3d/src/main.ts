@@ -1073,7 +1073,9 @@ function updatePinMarker(): void {
   const info = hud.infoPanel.getBoundingClientRect();
   const wind = hud.windPanel.getBoundingClientRect();
   el.style.top = `${wind.top + wind.height / 2 - el.offsetHeight / 2}px`;
-  const half = el.offsetWidth / 2;
+  // Fixed half-width: using offsetWidth makes the arrow-on/off state feed back
+  // into the clamp and flicker the layout every frame.
+  const half = 64;
   const minX = info.right + 10 + half;
   const maxX = wind.left - 10 - half;
   const fits = minX <= maxX;
