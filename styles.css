@@ -1,26 +1,51 @@
-body.game-view .topbar, .topbar.topbar--compact {
+.reveal-match-btn { min-height: 42px; padding: 10px 16px; }
+.result-reveal {
+  margin: auto; width: min(90vw, 400px); padding: 32px; border-radius: 24px;
+  border: 1px solid #ffffff30; background: linear-gradient(145deg, #183458, #0b1425);
+  color: #f3f7ff; text-align: center; box-shadow: 0 20px 80px #0008;
+}
+.result-reveal::backdrop { background: #020713b8; backdrop-filter: blur(8px); }
+.result-reveal h2 { margin-bottom: 14px; font-size: 32px; }
+.result-reveal p { margin-bottom: 24px; line-height: 1.6; }
+.result-reveal--won h2 { color: #6ce9af; }
+.result-reveal--lost h2 { color: #fba5a5; }
+@media (prefers-reduced-motion: no-preference) {
+  .result-reveal[open] { animation: reveal-result-in 0.35s ease-out; }
+  @keyframes reveal-result-in { from { opacity: 0; transform: translateY(16px) scale(0.95); } to { opacity: 1; transform: none; } }
+}
+body:is(.game-view, .results-view) .topbar, .topbar.topbar--compact {
   width: max-content;
   max-width: calc(100% - 24px);
   margin-inline: auto;
   padding: 6px 14px;
   border-radius: 999px;
 }
-body.game-view .topbar .logo,
-body.game-view .topbar #pwa-install-container,
-body.game-view .topbar .auth-user-meta,
-body.game-view .topbar .auth-actions-row,
-body.game-view .topbar #spin-banner,
-body.game-view .topbar #header-deposit-btn,
-body.game-view .topbar #balance-refresh-btn {
+body:is(.game-view, .results-view) .topbar .logo,
+body:is(.game-view, .results-view) .topbar #pwa-install-container,
+body:is(.game-view, .results-view) .topbar .auth-user-meta,
+body:is(.game-view, .results-view) .topbar .auth-actions-row,
+body:is(.game-view, .results-view) .topbar #spin-banner,
+body:is(.game-view, .results-view) .topbar #header-deposit-btn,
+body:is(.game-view, .results-view) .topbar #balance-refresh-btn {
   display: none !important;
 }
 .topbar.topbar--compact .auth-user-meta { display: none !important; }
-body.game-view .topbar .auth-logged-in {
+body:is(.game-view, .results-view) .topbar .auth-logged-in {
   padding: 0; border: 0; background: none; box-shadow: none;
 }
+body.game-view:not(.immersive-play) { height: 100dvh; overflow: hidden; overscroll-behavior: none; }
+body.game-view:not(.immersive-play) #app {
+  height: 100%; display: flex; flex-direction: column;
+  padding: max(10px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+}
+body.game-view:not(.immersive-play) #main-content {
+  flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center;
+}
+body.game-view:not(.immersive-play) .topbar { flex: none; position: static; margin-bottom: 12px; }
 body.game-view .game-shell:not(.game-started) {
   width: min(100%, 640px);
-  margin: clamp(24px, 7vh, 80px) auto 24px;
+  max-height: 100%; display: flex; flex-direction: column; overflow: hidden;
+  margin: 0 auto;
   padding: clamp(20px, 5vw, 36px);
   min-height: 0;
   background: linear-gradient(145deg, #14243c, #0b1222);
@@ -33,6 +58,39 @@ body.game-view .game-shell:not(.game-started) .game-shell-header-actions { justi
 body.game-view .game-shell:not(.game-started) .tagline { text-align: center; color: #acbdd3; }
 body.game-view .game-shell:not(.game-started) [data-leaderboard-card] { margin-top: 24px !important; background: #0b1629; border-radius: 16px; }
 body.game-view .game-shell:not(.game-started) [id$='-wager'] { width: 100%; margin: 12px 0; }
+body.game-view:not(.immersive-play) #game-root { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+body.game-view:not(.immersive-play) #debug-panel { display: none; }
+.results-home { display: none; }
+body.results-view .results-home { display: inline-flex; }
+body.results-view .hub-category-bar,
+body.results-view .hub-intro,
+body.results-view #hub-games { display: none !important; }
+body.results-view #wagers-card {
+  display: block !important; width: min(100%, 760px); margin: 24px auto;
+  padding: clamp(16px, 4vw, 28px); border-radius: 24px;
+  background: linear-gradient(145deg, #14243c, #0a1220);
+  border: 1px solid #ffffff16; box-shadow: 0 16px 48px #0004;
+}
+body.results-view #wagers-card .section-title { font-size: clamp(20px, 5vw, 28px); letter-spacing: -0.03em; }
+body.results-view #wagers-content { max-height: none !important; overflow: visible !important; margin-top: 20px !important; gap: 12px; }
+body.results-view #wagers-card > div:first-child { align-items: flex-start; gap: 16px; }
+body.results-view #wagers-card > div:first-child > div { flex-wrap: wrap; }
+body.results-view .wagers-filter-group { flex-wrap: wrap; gap: 6px !important; }
+body.results-view .wagers-filter-group .btn,
+body.results-view #wagers-refresh { min-height: 36px; border-radius: 10px; padding: 8px 12px !important; }
+body.results-view .wager-row {
+  padding: 16px; border-radius: 16px; background: #0b1629;
+  border: 1px solid #ffffff12; box-shadow: 0 4px 16px #0002;
+}
+body.results-view .wager-title { font-size: 16px; font-weight: 800; }
+body.results-view .wager-meta { color: #9eacc2; line-height: 1.5; }
+body.results-view .wager-amount { font-size: 18px; font-weight: 800; }
+body.results-view .status-pill { border-radius: 8px; padding: 4px 8px; font-size: 10px; letter-spacing: 0.04em; }
+@media (max-height: 740px) {
+  body.game-view .game-shell:not(.game-started) { padding: 16px; }
+  body.game-view .game-shell:not(.game-started) .tagline { margin: 10px 0; font-size: 12px; line-height: 1.4; }
+  body.game-view .game-shell:not(.game-started) .game-shell-header { gap: 8px; }
+}
 body.immersive-play { overflow: hidden; }
 body.immersive-play .topbar { display: none !important; }
 body.immersive-play #game-shell {

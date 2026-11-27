@@ -1254,7 +1254,9 @@ const mainContent = document.getElementById("main-content");
 const authModalRoot = document.getElementById("auth-modal-root");
 
 function render() {
+  stopResultsWatch();
   document.body.classList.toggle('game-view', currentView === 'game');
+  document.body.classList.toggle('results-view', currentView === 'hub' && hubPanel === 'results');
   document.body.classList.remove('immersive-play');
   renderAuth();
   renderMain();
@@ -1792,6 +1794,63 @@ const gameCards = [
   },
 ];
 
+let hubPanel = 'games';
+let resultsWatchTimer = null;
+let resultsWatchEpoch = 0;
+let resultsWatchRows = [];
+let resultsWatchContainer = null;
+
+function stopResultsWatch() {
+  clearTimeout(resultsWatchTimer);
+  resultsWatchTimer = null;
+  resultsWatchEpoch++;
+}
+
+function startResultsWatch(matches, container) {
+  if (document.getElementById('wagers-content') !== container) return;
+  resultsWatchRows = matches;
+  resultsWatchContainer = container;
+  stopResultsWatch();
+  if (currentView !== 'hub' || hubPanel !== 'results' || !currentUser || !matches.length) return;
+  const epoch = resultsWatchEpoch;
+  const snapshot = (rows) => JSON.stringify(rows.map((row) => [row.id, row.status, row.winner_id, row.settled_at]).sort((a, b) => a[0].localeCompare(b[0])));
+  const initial = snapshot(matches);
+  const poll = async () => {
+    if (epoch !== resultsWatchEpoch || currentView !== 'hub' || hubPanel !== 'results' || !container.isConnected) return;
+    if (document.hidden) {
+      resultsWatchTimer = setTimeout(poll, 5000);
+      return;
+    }
+    try {
+      const { data: latest, error } = await supabaseClient.from('matches')
+        .select('id,status,winner_id,settled_at').in('id', matches.map((match) => match.id));
+      if (epoch !== resultsWatchEpoch) return;
+      if (error) throw error;
+      const timedOut = matches.some((match) => match.status !== 'complete' && Date.now() - new Date(match.created_at).getTime() >= MATCH_TIMEOUT_MS);
+      if (snapshot(latest || []) !== initial || timedOut) {
+        await loadAndRenderWagers();
+        return;
+      }
+    } catch (error) {
+      console.warn('Result refresh failed', error);
+    }
+    if (epoch === resultsWatchEpoch) resultsWatchTimer = setTimeout(poll, 5000);
+  };
+  resultsWatchTimer = setTimeout(poll, 5000);
+}
+
+function syncHubPanel() {
+  const results = hubPanel === 'results';
+  document.body.classList.toggle('results-view', results);
+  if (results && resultsWatchContainer === document.getElementById('wagers-content')) startResultsWatch(resultsWatchRows, resultsWatchContainer);
+  else stopResultsWatch();
+  document.getElementById('hub-games')?.classList.toggle('mobile-panel-hidden', results);
+  document.getElementById('wagers-card')?.classList.toggle('mobile-panel-active', results);
+  document.querySelectorAll('[data-mobile-target]').forEach((button) => {
+    button.classList.toggle('active', button.dataset.mobileTarget === hubPanel);
+  });
+}
+
 function renderHub() {
   const gameArt = {
     "flappy-race": { icon: "FLAP", image: "assets/flappy-race-cover.png", category: "action" },
@@ -1867,6 +1926,7 @@ function renderHub() {
             <button id="wagers-filter-today" class="btn btn-secondary" style="padding:0.2rem 0.7rem;">Today</button>
           </div>
           <button id="wagers-refresh" class="btn btn-secondary" style="padding:0.25rem 0.7rem;font-size:0.75rem;">Refresh</button>
+          <button id="results-back-to-games" class="btn btn-secondary results-home">Back to games</button>
         </div>
       </div>
       <div id="wagers-content" class="small-text" style="margin-top:0.35rem; max-height: 220px; overflow-y: auto;">${
@@ -1896,11 +1956,8 @@ function renderHub() {
   document.querySelectorAll("[data-mobile-target]").forEach((navBtn) => {
     navBtn.addEventListener("click", () => {
       const target = navBtn.getAttribute("data-mobile-target");
-      const gamesPanel = document.getElementById("hub-games");
-      const resultsPanel = document.getElementById("wagers-card");
-      document.querySelectorAll("[data-mobile-target]").forEach((btn) => btn.classList.toggle("active", btn === navBtn));
-      if (gamesPanel) gamesPanel.classList.toggle("mobile-panel-hidden", target === "results");
-      if (resultsPanel) resultsPanel.classList.toggle("mobile-panel-active", target === "results");
+      hubPanel = target === 'results' ? 'results' : 'games';
+      syncHubPanel();
       if (target === "account") {
         currentView = "profile";
         render();
@@ -1908,6 +1965,13 @@ function renderHub() {
       }
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
+  });
+
+  syncHubPanel();
+  document.getElementById('results-back-to-games')?.addEventListener('click', () => {
+    hubPanel = 'games';
+    syncHubPanel();
+    window.scrollTo(0, 0);
   });
 
   document.querySelectorAll("[data-game-id]").forEach((btn) => {
@@ -2124,12 +2188,6 @@ function renderGameScreen() {
         </div>
         <div class="game-shell-header-actions">
           <button class="btn btn-secondary" id="game-practice">Practice</button>
-          <button
-            class="btn btn-secondary fullscreen-icon-btn"
-            id="game-fullscreen-toggle"
-            aria-label="Enter full screen"
-            title="Enter full screen"
-          >⛶</button>
           <button class="btn btn-secondary" id="back-to-hub">Back to games</button>
         </div>
       </div>
@@ -3550,7 +3608,7 @@ function mountProGolf() {
         <iframe
           id="pro-golf-iframe"
           title="Pro Golf 3D"
-          src="games/golf-3d/dist/index.html?v=5${proGolfState?.inWager ? `&seed=${encodeURIComponent(proGolfState.matchId)}` : ""}"
+          src="games/golf-3d/dist/index.html?v=6${proGolfState?.inWager ? `&seed=${encodeURIComponent(proGolfState.matchId)}` : ""}"
           allow="autoplay"
         ></iframe>
       </div>
@@ -3583,12 +3641,25 @@ function mountProGolf() {
   if (proGolfMessageHandler) {
     window.removeEventListener("message", proGolfMessageHandler);
   }
-  proGolfMessageHandler = (event) => {
-    if (!event.data || (event.data.type !== "pro-golf-gameover" && event.data.type !== "pro-golf-progress")) return;
+  let completedPaidRound = false;
+  let completionPromise = Promise.resolve();
+  proGolfMessageHandler = async (event) => {
+    if (!event.data || !['pro-golf-gameover', 'pro-golf-progress', 'pro-golf-continue'].includes(event.data.type)) return;
     const iframe = document.getElementById("pro-golf-iframe");
     // file:// pages report an opaque "null" origin, so only verify the sender window.
     if (!iframe || event.source !== iframe.contentWindow) return;
     if (proGolfState?.inWager && event.data.seed !== String(proGolfState.matchId)) return;
+    if (event.data.type === 'pro-golf-continue') {
+      await completionPromise;
+      await exitGameFullscreen();
+      stopAllGames();
+      currentGameId = null;
+      currentView = 'hub';
+      hubPanel = completedPaidRound ? 'results' : 'games';
+      render();
+      window.scrollTo(0, 0);
+      return;
+    }
 
     const score = event.data.score;
     if (!Number.isSafeInteger(score) || score < 0 || score > 21300) return;
@@ -3598,7 +3669,8 @@ function mountProGolf() {
     if (event.data.type === "pro-golf-progress") {
       handleProGolfProgress(score);
     } else {
-      handleProGolfGameOver(score);
+      completedPaidRound = Boolean(proGolfState?.inWager);
+      completionPromise = handleProGolfGameOver(score);
     }
   };
   window.addEventListener("message", proGolfMessageHandler);
@@ -4764,7 +4836,7 @@ async function submitMatchScore(matchId, playerSlot, score, finished = true) {
             .eq("id", match.id)
             .neq("status", "complete");
           if (staleWinner) {
-            try { await supabaseClient.rpc("rpc_settle_match", { p_match_id: match.id }); } catch (e) { console.error(e); }
+            console.info('Match ready to reveal', match.id);
           }
           return submitMatchScore(matchId, playerSlot, score);
         }
@@ -4843,10 +4915,10 @@ async function submitMatchScore(matchId, playerSlot, score, finished = true) {
           resultEl.innerHTML = `<span style="color:#fbbf24;font-weight:bold;font-size:1.1rem;">🤝 TIE GAME!</span> <span style="color:#fcd34d;">Entry refunded</span>`;
         } else if (isWinner) {
           const prizeLabel = isCashMatch ? `$${prize.toFixed(2)}` : `${prize} coins`;
-          resultEl.innerHTML = `<span style="color:#22c55e;font-weight:bold;font-size:1.1rem;">🏆 YOU WON!</span> <span style="color:#4ade80;">+${prizeLabel}</span>`;
+          resultEl.textContent = 'Match complete. Open Tournament Results to reveal your result.';
         } else {
           const lossLabel = isCashMatch ? `$${entryAmount.toFixed(2)}` : `${entryAmount} coins`;
-          resultEl.innerHTML = `<span style="color:#ef4444;font-weight:bold;font-size:1.1rem;">😢 YOU LOST</span> <span style="color:#f87171;">-${lossLabel}</span>`;
+          resultEl.textContent = 'Match complete. Open Tournament Results to reveal your result.';
         }
       }
 
@@ -4900,11 +4972,7 @@ async function submitMatchScore(matchId, playerSlot, score, finished = true) {
     // Any client that completes the match now calls rpc_settle_match.
     // The SQL function ensures only participants can settle and uses
     // settled_at to avoid double-paying.
-    try {
-      await supabaseClient.rpc("rpc_settle_match", { p_match_id: match.id });
-    } catch (e) {
-      console.error("Failed to settle match via rpc_settle_match", e);
-    }
+    console.info('Match ready to reveal', match.id);
 
     // Refresh the user's balance after potential settlement.
     await loadCurrentUser();
@@ -4920,18 +4988,18 @@ async function submitMatchScore(matchId, playerSlot, score, finished = true) {
       const resultEl = getWagerResultElementForGame(match.game_id);
       const prizeLabel = isCashMatch ? `$${prize.toFixed(2)}` : `${prize} coins`;
       if (resultEl) {
-        resultEl.innerHTML = `<span style="color:#22c55e;font-weight:bold;font-size:1.1rem;">🏆 YOU WON!</span> <span style="color:#4ade80;">+${prizeLabel}</span>`;
+        resultEl.textContent = 'Match complete. Open Tournament Results to reveal your result.';
       } else {
-        alert(`YOU WON! Prize: ${prizeLabel}`);
+        alert('Match complete. Open Tournament Results to reveal your result.');
       }
     } else if (loserId === currentUser.id) {
       // Loser already paid entry on start; no further changes.
       const resultEl = getWagerResultElementForGame(match.game_id);
       const lossLabel = isCashMatch ? `$${entryAmount.toFixed(2)}` : `${entryAmount} coins`;
       if (resultEl) {
-        resultEl.innerHTML = `<span style="color:#ef4444;font-weight:bold;font-size:1.1rem;">😢 YOU LOST</span> <span style="color:#f87171;">-${lossLabel}</span>`;
+        resultEl.textContent = 'Match complete. Open Tournament Results to reveal your result.';
       } else {
-        alert(`YOU LOST your ${lossLabel} entry fee.`);
+        alert('Match complete. Open Tournament Results to reveal your result.');
       }
     }
   } catch (e) {
@@ -5053,13 +5121,14 @@ async function loadAndRenderWagers() {
   const container = document.getElementById("wagers-content");
   if (!container || !supabaseClient || !currentUser) return;
 
+  stopResultsWatch();
   container.textContent = "Loading...";
 
   // Load regular matches
   const { data, error } = await supabaseClient
     .from("matches")
     .select(
-      "id, game_id, wager, cash_entry, currency, status, winner_id, player1_id, player2_id, player1_score, player2_score, created_at"
+      "id, game_id, wager, cash_entry, currency, status, winner_id, player1_id, player2_id, player1_score, player2_score, created_at, settled_at"
     )
     // Only show matches this user participated in
     .or(`player1_id.eq.${currentUser.id},player2_id.eq.${currentUser.id}`)
@@ -5168,7 +5237,7 @@ async function loadAndRenderWagers() {
               .neq("status", "complete")
               .select("id");
             if (!scoreErr && scoreRows && scoreRows.length > 0 && staleWinner) {
-              try { await supabaseClient.rpc("rpc_settle_match", { p_match_id: m.id }); } catch (e) { console.error(e); }
+              console.info('Match ready to reveal', m.id);
               await loadCurrentUser();
             }
             m.status = "complete";
@@ -5231,6 +5300,19 @@ async function loadAndRenderWagers() {
   // Load fees_ledger rows for these matches so we can compute net +/- per match.
   // Only for regular matches (not speed dash)
   const regularMatchIds = (data || []).map((m) => m.id);
+  let revealsByMatchId = {};
+  let revealAvailable = false;
+  if (regularMatchIds.length) {
+    const { data: reveals, error: revealError } = await supabaseClient
+      .from('match_reveals').select('match_id,outcome,payout_amount,currency')
+      .eq('player_id', currentUser.id).in('match_id', regularMatchIds);
+    if (!revealError) {
+      revealAvailable = true;
+      revealsByMatchId = Object.fromEntries((reveals || []).map((entry) => [entry.match_id, entry]));
+    } else {
+      console.error('Reveal setup is unavailable', revealError);
+    }
+  }
   let ledgerByMatchId = {};
   if (regularMatchIds.length > 0) {
     try {
@@ -5396,6 +5478,16 @@ async function loadAndRenderWagers() {
       displayAmount = -entryAmount; // negative because it's been paid
     }
 
+    const reveal = revealsByMatchId[m.id];
+    if (reveal) {
+      isWin = reveal.outcome === 'won';
+      isLoss = reveal.outcome === 'lost';
+      isTie = reveal.outcome === 'refunded';
+      statusKey = isWin ? 'win' : isLoss ? 'loss' : 'tie';
+      statusLabel = isWin ? 'Revealed - you won' : isLoss ? 'Revealed - you lost' : 'Refunded';
+      displayAmount = isLoss ? -entryAmount : Number(reveal.payout_amount);
+      net = isWin ? displayAmount - entryAmount : isLoss ? -entryAmount : 0;
+    }
     const createdAt = new Date(m.created_at);
     const inLast24h = createdAt >= dayAgo;
 
@@ -5436,13 +5528,15 @@ async function loadAndRenderWagers() {
       isCash,
       entryAmount,
       provablyFair: pfData || null,
+      unrevealed: !m._isSpeedDash && m.status === 'complete' && Boolean(m.winner_id) && !revealsByMatchId[m.id],
+      reveal: revealsByMatchId[m.id] || null,
     };
   });
 
   // Apply filter for the list view
   const filtered = enriched.filter((row) => {
-    if (wagersFilter === "wins") return row.isWin;
-    if (wagersFilter === "losses") return row.isLoss;
+    if (wagersFilter === "wins") return !row.unrevealed && row.isWin;
+    if (wagersFilter === "losses") return !row.unrevealed && row.isLoss;
     if (wagersFilter === "today") {
       const todayLocal = new Date();
       todayLocal.setHours(0, 0, 0, 0);
@@ -5456,7 +5550,7 @@ async function loadAndRenderWagers() {
       const { match: m } = row;
 
       const amt = row.displayAmount ?? row.net;
-      const isPending = m.status === "open" || m.status === "active";
+      const isPending = m.status !== 'complete';
 
       let amountLabel;
       let amountClass;
@@ -5495,24 +5589,24 @@ async function loadAndRenderWagers() {
 
       // Generate verify button if provably fair data exists
       const verifyBtn = row.provablyFair
-        ? `<button class="btn btn-secondary verify-pf-btn" data-match-id="${m.id}" data-hash="${row.provablyFair.server_seed_hash || ''}" data-seed="${row.provablyFair.is_revealed ? (row.provablyFair.server_seed || '') : ''}" style="padding:0.15rem 0.45rem;font-size:0.62rem;min-height:auto;">Verify</button>`
+        ? `<button class="btn btn-secondary verify-pf-btn" data-match-id="${m.id}" data-hash="${escapeResultText(row.provablyFair.server_seed_hash)}" data-seed="${escapeResultText(row.provablyFair.is_revealed ? row.provablyFair.server_seed : '')}" style="padding:0.15rem 0.45rem;font-size:0.62rem;min-height:auto;">Verify</button>`
         : '';
 
       return `<div class="wager-row">
         <div class="wager-main">
-          <div class="wager-title">${row.title}</div>
+          <div class="wager-title">${escapeResultText(row.title)}</div>
           <div class="wager-meta">
-            <span class="wager-opponent">vs ${row.oppName}</span>
+            <span class="wager-opponent">vs ${escapeResultText(row.oppName)}</span>
             <span class="wager-dot">•</span>
             <span class="wager-time">${row.createdAt.toLocaleString()}</span>
           </div>
-          <div class="wager-scores">${row.scoreLabel}</div>
+          <div class="wager-scores">${row.unrevealed ? 'Your result is ready to reveal' : row.scoreLabel}</div>
         </div>
         <div class="wager-side">
-          <div class="wager-amount ${amountClass}">${amountLabel}</div>
+          <div class="wager-amount ${row.unrevealed ? 'wager-net-pending' : amountClass}">${row.unrevealed ? 'Ready' : amountLabel}</div>
           <div class="wager-actions">
-            <span class="status-pill status-${row.statusKey}">${row.statusLabel}</span>
-            ${verifyBtn}
+            ${row.unrevealed ? `<button class="btn reveal-match-btn" data-reveal-match="${m.id}" ${revealAvailable ? '' : 'disabled title="Result service is unavailable. Refresh Results or try again shortly."'}>${revealAvailable ? 'Reveal result' : 'Reveal unavailable'}</button>` : `<span class="status-pill status-${row.statusKey}">${row.statusLabel}</span>`}
+            ${row.unrevealed ? '' : verifyBtn}
           </div>
         </div>
       </div>`;
@@ -5520,6 +5614,40 @@ async function loadAndRenderWagers() {
     .join("");
 
   container.innerHTML = rowsHtml;
+  startResultsWatch(data || [], container);
+  container.querySelectorAll('[data-reveal-match]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      button.textContent = 'Revealing…';
+      try {
+        const result = await requestMatchReveal(button.dataset.revealMatch);
+        const dialog = document.createElement('dialog');
+        dialog.className = `result-reveal result-reveal--${result.outcome}`;
+        const title = document.createElement('h2');
+        title.textContent = result.outcome === 'won' ? 'You won!' : result.outcome === 'lost' ? 'You lost' : 'Entry refunded';
+        const detail = document.createElement('p');
+        const amount = result.currency === 'CASH' ? `$${Number(result.payout_amount).toFixed(2)}` : `${Number(result.payout_amount)} coins`;
+        const entry = enriched.find((row) => row.match.id === result.match_id)?.entryAmount || 0;
+        const entryLabel = result.currency === 'CASH' ? `$${Number(entry).toFixed(2)}` : `${entry} coins`;
+        detail.textContent = result.outcome === 'won'
+          ? `${amount} ${result.credited_now ? 'added to your balance' : 'was already credited — no duplicate payment'}`
+          : result.outcome === 'lost' ? `-${entryLabel} entry, paid when you joined. No additional charge.` : `${amount} entry refund`;
+        const close = document.createElement('button');
+        close.className = 'btn';
+        close.textContent = 'Continue';
+        close.onclick = () => dialog.close();
+        dialog.addEventListener('close', () => dialog.remove(), { once: true });
+        dialog.append(title, detail, close);
+        document.body.append(dialog);
+        dialog.showModal();
+        await loadCurrentUser();
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = 'Retry reveal';
+        alert(error.message || 'Reveal failed. Your result is still available to retry.');
+      }
+    });
+  });
   
   // Add click handlers for verify buttons
   container.querySelectorAll('.verify-pf-btn').forEach(btn => {
@@ -5530,6 +5658,26 @@ async function loadAndRenderWagers() {
       showProvablyFairInfo(hash, seed, matchId);
     });
   });
+}
+
+function escapeResultText(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+}
+
+async function requestMatchReveal(matchId) {
+  if (!currentUser || !supabaseClient) throw new Error('Sign in to reveal a result.');
+  if (typeof matchId !== 'string' || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(matchId)) {
+    throw new Error('Invalid match. Refresh Results and try again.');
+  }
+  const userId = currentUser.id;
+  const { data: result, error } = await supabaseClient.rpc('rpc_reveal_match', { p_match_id: matchId });
+  if (error) throw error;
+  if (!result || result.match_id !== matchId || result.player_id !== userId || currentUser?.id !== userId
+      || !['won', 'lost', 'refunded'].includes(result.outcome) || !['CASH', 'COIN'].includes(result.currency)
+      || result.payout_amount == null || !Number.isFinite(Number(result.payout_amount)) || Number(result.payout_amount) < 0) {
+    throw new Error('Could not read the reveal receipt. Refresh Results before trying again.');
+  }
+  return result;
 }
 
 async function loadLeaderboardForGame(gameId, containerId) {

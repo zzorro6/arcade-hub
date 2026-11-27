@@ -120,8 +120,8 @@ function finishRoundHole(sunk: boolean): void {
     (bonus > 0 ? `<div class="score-row total"><span>${resultName}</span><b>+${bonus}</b></div>` : '') +
     `<div class="score-row final"><span>Final score</span><b>${roundPoints}</b></div>`;
   hud.result.hidden = false;
-  $('result-again').textContent = 'Round complete';
-  ($('result-again') as HTMLButtonElement).disabled = true;
+  $('result-again').textContent = 'Continue';
+  ($('result-again') as HTMLButtonElement).disabled = false;
   window.parent.postMessage({ type: 'pro-golf-gameover', score: roundPoints, seed: roundSeed }, '*');
 }
 
@@ -844,12 +844,23 @@ window.addEventListener('keydown', (e) => {
     clubIndex = (clubIndex + 1) % CLUBS.length;
   } else if (key === 'enter' && state === 'won' && !hud.result.hidden) {
     e.preventDefault();
-    replayHole();
+    continueRound();
   }
 });
 
 $('menu').addEventListener('click', leaveHole);
-$('result-again').addEventListener('click', replayHole);
+$('result-again').addEventListener('click', continueRound);
+
+function continueRound(): void {
+  if (!roundEnded) {
+    replayHole();
+    return;
+  }
+  const button = $('result-again') as HTMLButtonElement;
+  if (button.disabled) return;
+  button.disabled = true;
+  window.parent.postMessage({ type: 'pro-golf-continue', seed: roundSeed }, '*');
+}
 $('result-menu').addEventListener('click', leaveHole);
 $('editor-start').addEventListener('click', () => {
   hud.start.hidden = true;
