@@ -12,6 +12,10 @@ import { seedForHole, finishBonus, firstGreenBonus } from './round';
 
 const roundSeed = new URLSearchParams(location.search).get('seed') ?? crypto.randomUUID();
 let roundPoints = 0;
+window.addEventListener('message', (event) => {
+  if (event.source !== window.parent || event.data?.type !== 'arcade-score-request') return;
+  window.parent.postMessage({ type: 'arcade-score-response', requestId: event.data.requestId, score: roundPoints }, '*');
+});
 /** Distance to the pin before the last shot; each shot earns % of the remaining ground it covered. */
 let prevDistToPin = 0;
 let spinLevel = 0;

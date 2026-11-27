@@ -1431,6 +1431,11 @@ function startGame(){
   Audio_.resume();
   Audio_.startAmbience();
 }
+window.addEventListener('message', (event) => {
+  if (event.source !== window.parent || event.data?.type !== 'arcade-score-request') return;
+  window.parent.postMessage({ type: 'arcade-score-response', requestId: event.data.requestId, score: wave * 100000 + killCount }, '*');
+});
+
 function triggerGameOver(){
   gameState='gameover';
   const survived = Math.round(performance.now()/1000 - runStartTime);

@@ -635,6 +635,11 @@ function die(hex) {
     localStorage.setItem('cr_attempts', attempt.toString());
 }
 
+window.addEventListener('message', (event) => {
+    if (event.source !== window.parent || event.data?.type !== 'arcade-score-request') return;
+    window.parent.postMessage({ type: 'arcade-score-response', requestId: event.data.requestId, score: G.score || 0 }, '*');
+});
+
 function showGameOver() {
     G.playing = false;
     cancelAnimationFrame(animId);

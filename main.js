@@ -1254,6 +1254,8 @@ const mainContent = document.getElementById("main-content");
 const authModalRoot = document.getElementById("auth-modal-root");
 
 function render() {
+  document.body.classList.toggle('game-view', currentView === 'game');
+  document.body.classList.remove('immersive-play');
   renderAuth();
   renderMain();
 }
@@ -1921,7 +1923,7 @@ function renderHub() {
       render();
       // On phones, entering a game from the hub should immediately lock it to
       // fullscreen so the canvas isn't buried under browser chrome / scroll.
-      if (isTouchDevice()) {
+      if (isTouchDevice() && document.body.classList.contains('immersive-play')) {
         enterGameFullscreen().catch((err) => console.error("Auto fullscreen failed", err));
       }
     });
@@ -1996,7 +1998,7 @@ function lockGameArea() {
   const root = document.getElementById("game-root");
   if (!root) return;
   const iframe = root.querySelector("iframe");
-  const host = iframe ? iframe.parentElement : root.querySelector("#avoid-germs-container, #speed-dash-container");
+  const host = iframe ? iframe.parentElement : root.querySelector("#avoid-germs-container, #speed-dash-race");
   if (!host) return;
   if (iframe && !iframe.dataset.lockedSrc) {
     iframe.dataset.lockedSrc = iframe.src;
@@ -2006,8 +2008,93 @@ function lockGameArea() {
   host.dataset.gameHost = "true";
 }
 
+function requestCurrentGameScore() {
+  if (currentGameId === 'speed-dash') return Promise.resolve(Math.round((speedDashState?.position || 0) * 100) / 100);
+  const iframe = document.querySelector('#game-root iframe');
+  if (!iframe) {
+    const value = Number(document.querySelector('#game-root .chicken-score')?.textContent);
+    return Number.isFinite(value) ? Promise.resolve(value) : Promise.reject(new Error('Current score is unavailable.'));
+  }
+  return new Promise((resolve, reject) => {
+    const requestId = crypto.randomUUID();
+    const listener = (event) => {
+      if (event.source !== iframe.contentWindow || event.data?.type !== 'arcade-score-response' || event.data.requestId !== requestId) return;
+      const value = event.data.score;
+      if (!Number.isSafeInteger(value) || value < 0) return;
+      clearTimeout(timeout);
+      window.removeEventListener('message', listener);
+      resolve(value);
+    };
+    const timeout = setTimeout(() => {
+      window.removeEventListener('message', listener);
+      reject(new Error('The game has not responded. Please try again once it has loaded.'));
+    }, 2000);
+    window.addEventListener('message', listener);
+    iframe.contentWindow.postMessage({ type: 'arcade-score-request', requestId }, '*');
+  });
+}
+
 function unlockGameArea() {
   document.getElementById("game-shell")?.classList.add("game-started");
+  const gameFrame = document.querySelector('#game-root iframe');
+  if (gameFrame) gameFrame.parentElement.dataset.gameHost = 'true';
+  document.body.classList.add('immersive-play');
+  const shell = document.getElementById('game-shell');
+  if (!document.fullscreenElement && shell?.requestFullscreen) shell.requestFullscreen().catch(() => {});
+  window.scrollTo(0, 0);
+  if (!document.getElementById('play-toolbar')) {
+    const toolbar = document.createElement('div');
+    toolbar.id = 'play-toolbar';
+    const score = document.createElement('strong');
+    score.textContent = 'Score: 0';
+    const source = document.querySelector('#game-root .chicken-score');
+    if (source) {
+      const sync = () => { score.textContent = `Score: ${source.textContent}`; };
+      sync();
+      const observer = new MutationObserver(sync);
+      observer.observe(source, { childList: true, characterData: true, subtree: true });
+    }
+    let polling = false;
+    const poll = setInterval(async () => {
+      if (!document.body.contains(toolbar)) { clearInterval(poll); return; }
+      if (polling) return;
+      polling = true;
+      try { score.textContent = `Score: ${await requestCurrentGameScore()}`; } catch (_) {}
+      finally { polling = false; }
+    }, 500);
+    const exit = document.createElement('button');
+    exit.className = 'btn btn-secondary';
+    exit.textContent = 'Forfeit / Exit';
+    exit.onclick = async () => {
+      if (!confirm('Are you sure you want to forfeit? Your current score will be submitted. Practice scores are not submitted.')) return;
+      exit.disabled = true;
+      const states = { 'pro-golf': proGolfState, 'avoid-germs': germsState, 'night-shift': nightShiftState,
+        'geometry-rush': geometryRushState, 'color-rush': colorRushState,
+        'speed-minesweeper': speedMinesweeperState, 'flappy-race': flappyState };
+      const state = states[currentGameId];
+      try {
+        if (currentGameId === 'speed-dash' && speedDashState?.participantId && !speedDashState.practice) {
+          const { error } = await supabaseClient.from('race_participants')
+            .update({ position: speedDashState.position, finished_at: new Date().toISOString() })
+            .eq('id', speedDashState.participantId).eq('player_id', currentUser.id);
+          if (error) throw error;
+        } else if (state?.inWager && state.matchId && state.playerSlot) {
+          const value = await requestCurrentGameScore();
+          await submitMatchScore(state.matchId, state.playerSlot, value);
+        }
+        exitGameFullscreen();
+        stopAllGames();
+        currentView = 'hub';
+        currentGameId = null;
+        render();
+      } catch (error) {
+        alert(error.message || 'Score submission failed. Please try again.');
+        exit.disabled = false;
+      }
+    };
+    toolbar.append(score, exit);
+    document.getElementById('game-shell')?.append(toolbar);
+  }
   document.querySelectorAll('[data-game-host]').forEach((host) => { host.hidden = false; });
   const iframe = document.querySelector("#game-root iframe[data-locked-src]");
   if (iframe) {
@@ -2079,6 +2166,7 @@ function renderGameScreen() {
       try { stopAllGames(); } catch (e) { console.error(e); }
       exitGameFullscreen();
       renderGameScreen();
+      if (currentGameId === 'speed-dash') document.getElementById('game-root').startPractice?.();
       unlockGameArea();
     });
   }
@@ -2110,9 +2198,17 @@ function renderGameScreen() {
     colorRushState, speedMinesweeperState, flappyState].some((s) => s?.inWager);
   if (!inWager) lockGameArea();
   else unlockGameArea();
-  shell.addEventListener("click", (e) => {
-    if (e.target && e.target.id && e.target.id.endsWith("-wager")) unlockGameArea();
-  }, true);
+  shell.addEventListener("click", async (e) => {
+    if (!e.target?.id?.endsWith('-wager')) return;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const check = setInterval(() => {
+      if (!document.body.contains(shell)) { clearInterval(check); return; }
+      const active = [proGolfState, germsState, nightShiftState, geometryRushState,
+        colorRushState, speedMinesweeperState, flappyState].some((state) => state?.inWager);
+      if (active) { clearInterval(check); unlockGameArea(); }
+    }, 100);
+    setTimeout(() => clearInterval(check), 30000);
+  });
 }
 
 function mountAvoidGerms() {
@@ -3454,7 +3550,7 @@ function mountProGolf() {
         <iframe
           id="pro-golf-iframe"
           title="Pro Golf 3D"
-          src="games/golf-3d/dist/index.html?v=2${proGolfState?.inWager ? `&seed=${encodeURIComponent(proGolfState.matchId)}` : ""}"
+          src="games/golf-3d/dist/index.html?v=5${proGolfState?.inWager ? `&seed=${encodeURIComponent(proGolfState.matchId)}` : ""}"
           allow="autoplay"
         ></iframe>
       </div>
@@ -5736,6 +5832,46 @@ function mountSpeedDash() {
     };
   }
   const s = speedDashState; // Use consistent reference
+  root.startPractice = () => {
+    s.practice = true;
+    s.status = 'practice';
+    s.distance = Number(distanceSelect.value) || 100;
+    s.position = 0;
+    s.fatigue = 0;
+    s.lastClickTime = performance.now();
+    s.participants = [{ player_id: currentUser?.id, username: currentUser?.username || 'You', lane: 1, position: 0 }];
+    lobbyEl.style.display = 'none';
+    raceEl.style.display = 'block';
+    countdownEl.style.display = 'none';
+    clickZoneEl.style.display = 'block';
+    clickZoneEl.style.pointerEvents = 'auto';
+    clickZoneEl.onpointerdown = (event) => {
+      if (s.status !== 'practice') return;
+      event.preventDefault();
+      const now = performance.now();
+      const interval = now - s.lastClickTime;
+      s.lastClickTime = now;
+      const distance = (1.2 + Math.random() * 0.6) * Math.max(0.1, 1 - s.fatigue * 0.9);
+      s.fatigue = Math.min(1, s.fatigue + (interval < 60 ? 0.15 : interval < 100 ? 0.1 : interval < 150 ? 0.06 : interval < 250 ? 0.03 : interval < 400 ? 0.01 : 0));
+      s.position = Math.min(s.distance, s.position + distance);
+      s.participants[0].position = s.position;
+      if (s.position >= s.distance) {
+        s.status = 'finished';
+        resultEl.style.display = 'block';
+        resultTextEl.textContent = 'Practice complete — no score submitted';
+      }
+      renderTrack();
+    };
+    let previous = performance.now();
+    const practiceLoop = (now) => {
+      if (speedDashState !== s || s.status !== 'practice') return;
+      s.fatigue = Math.max(0, s.fatigue - (now - previous) * 0.00018);
+      previous = now;
+      renderTrack();
+      speedDashAnimId = requestAnimationFrame(practiceLoop);
+    };
+    speedDashAnimId = requestAnimationFrame(practiceLoop);
+  };
 
   // Global function for provably fair modal - reads from current state
   window.showProvablyFairModal = function() {
@@ -6536,6 +6672,7 @@ function mountSpeedDash() {
     try {
       lobbyEl.style.display = "none";
       raceEl.style.display = "block";
+      unlockGameArea();
       countdownEl.style.display = "block";
       countdownEl.style.color = "#fff";
       clickZoneEl.style.pointerEvents = "none";

@@ -1,3 +1,65 @@
+body.game-view .topbar, .topbar.topbar--compact {
+  width: max-content;
+  max-width: calc(100% - 24px);
+  margin-inline: auto;
+  padding: 6px 14px;
+  border-radius: 999px;
+}
+body.game-view .topbar .logo,
+body.game-view .topbar #pwa-install-container,
+body.game-view .topbar .auth-user-meta,
+body.game-view .topbar .auth-actions-row,
+body.game-view .topbar #spin-banner,
+body.game-view .topbar #header-deposit-btn,
+body.game-view .topbar #balance-refresh-btn {
+  display: none !important;
+}
+.topbar.topbar--compact .auth-user-meta { display: none !important; }
+body.game-view .topbar .auth-logged-in {
+  padding: 0; border: 0; background: none; box-shadow: none;
+}
+body.game-view .game-shell:not(.game-started) {
+  width: min(100%, 640px);
+  margin: clamp(24px, 7vh, 80px) auto 24px;
+  padding: clamp(20px, 5vw, 36px);
+  min-height: 0;
+  background: linear-gradient(145deg, #14243c, #0b1222);
+  border-radius: 24px;
+}
+body.game-view .game-shell:not(.game-started) .tagline { margin: 20px 0; line-height: 1.6; }
+body.game-view .game-shell:not(.game-started) .game-shell-title-row { justify-content: center; }
+body.game-view .game-shell:not(.game-started) .game-shell-header { flex-direction: column; justify-content: center; text-align: center; gap: 18px; }
+body.game-view .game-shell:not(.game-started) .game-shell-header-actions { justify-content: center; flex-wrap: wrap; }
+body.game-view .game-shell:not(.game-started) .tagline { text-align: center; color: #acbdd3; }
+body.game-view .game-shell:not(.game-started) [data-leaderboard-card] { margin-top: 24px !important; background: #0b1629; border-radius: 16px; }
+body.game-view .game-shell:not(.game-started) [id$='-wager'] { width: 100%; margin: 12px 0; }
+body.immersive-play { overflow: hidden; }
+body.immersive-play .topbar { display: none !important; }
+body.immersive-play #game-shell {
+  position: fixed; inset: 0; z-index: 200; margin: 0; padding: 0;
+  width: 100%; max-width: none; height: 100dvh; border: 0; border-radius: 0;
+  background: #060c16; overflow: hidden;
+}
+body.immersive-play #game-shell > :not(#game-root):not(#play-toolbar) { display: none !important; }
+#play-toolbar { display: none; }
+body.immersive-play #play-toolbar {
+  display: flex; position: absolute; inset: 0 0 auto;
+  padding: calc(env(safe-area-inset-top) + 6px) 12px 6px;
+  justify-content: space-between; align-items: center; background: #0b1425; z-index: 10;
+}
+body.immersive-play #game-shell #game-root {
+  display: block;
+  position: absolute; inset: calc(env(safe-area-inset-top) + 54px) 0 env(safe-area-inset-bottom); margin: 0;
+}
+body.immersive-play #game-root > *, body.immersive-play [data-game-host] {
+  height: 100% !important; min-height: 0 !important; max-height: none !important; margin: 0 !important;
+}
+body.immersive-play #game-root iframe { width: 100%; height: 100% !important; border: 0; }
+body.immersive-play #game-root .chicken-score,
+body.immersive-play #game-root [data-leaderboard-card],
+body.immersive-play #game-root [id$='-top'],
+body.immersive-play #game-root [class$='-top'] { display: none !important; }
+body.immersive-play #game-root .small-text { display: none; }
 :root {
   --bg: #03060c;
   --surface: rgba(12, 18, 34, 0.72);

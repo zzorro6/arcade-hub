@@ -516,6 +516,11 @@ function showGameOver() {
     }
 }
 
+window.addEventListener('message', (event) => {
+    if (event.source !== window.parent || event.data?.type !== 'arcade-score-request') return;
+    window.parent.postMessage({ type: 'arcade-score-response', requestId: event.data.requestId, score: score || 0 }, '*');
+});
+
 function togglePause() {
     if (!playing || dead) return;
     paused = !paused;

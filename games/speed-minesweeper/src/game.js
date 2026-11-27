@@ -353,6 +353,11 @@ function finishRun(won) {
 }
 
 // ── Input ───────────────────────────────────────────────
+window.addEventListener('message', (event) => {
+    if (event.source !== window.parent || event.data?.type !== 'arcade-score-request') return;
+    window.parent.postMessage({ type: 'arcade-score-response', requestId: event.data.requestId, score: G.score || 0 }, '*');
+});
+
 function cellFromEvent(e) {
     const rect = canvas.getBoundingClientRect();
     const px = (e.clientX ?? (e.touches && e.touches[0].clientX) ?? 0) - rect.left;
